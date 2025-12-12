@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
@@ -112,15 +111,6 @@ export class AuthControllerV1 {
     );
     this.setRefreshCookie(res, result.refreshToken);
     return { user: result.user, accessToken: result.accessToken };
-  }
-
-  @Post('social-login')
-  @ApiOperation({ summary: 'Login with social provider (Google/Facebook)' })
-  @ApiResponse({ status: 501, description: 'Not yet implemented' })
-  socialLogin() {
-    // TODO: Implement social login (Google/Facebook OAuth)
-    // Parameters: body: SocialLoginDto, req: FastifyRequest, res: FastifyReply
-    throw new Error('Social login not yet implemented');
   }
 
   @UseGuards(JwtRefreshGuard)

@@ -1,175 +1,188 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   Injectable,
-  BadRequestException,
   UnauthorizedException,
-  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
-import {
-  SignupDto,
-  LoginDto,
-  SocialLoginDto,
-  RefreshTokenDto,
-  LogoutDto,
-  LogoutDeviceDto,
-  ForgotPasswordDto,
-  ResetPasswordDto,
-  VerifyDto,
-} from './dto/auth.dto';
-import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Role } from '@prisma/client';
+import { DeviceService } from 'src/modules/device/v1/device.service';
+import { AuthLogService } from 'src/modules/logging/auth-log.service';
+import {
+  RegisterDto,
+  RefreshTokenDto,
+  SocialLoginDto,
+  LogoutDto,
+  VerifyOtpDto,
+} from './dto/auth.dto';
+import { AppConfigService } from 'src/config/config.service';
+
+type TokenPair = { accessToken: string; refreshToken: string };
 
 @Injectable()
 export class AuthServiceV1 {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly deviceService: DeviceService,
+    private readonly authLogService: AuthLogService,
+    private readonly config: AppConfigService,
   ) {}
 
-  // ----------------- SIGNUP -----------------
-  async signup(dto: SignupDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+  async register(dto: RegisterDto, ip?: string, userAgent?: string) {
+    if (!dto.email && !dto.phone) {
+      throw new BadRequestException('email or phone is required');
+    }
+
+    const conflict = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          dto.email ? { email: dto.email } : undefined,
+          dto.phone ? { phone: dto.phone } : undefined,
+        ].filter(Boolean) as any,
+      },
     });
-    if (existing) throw new BadRequestException('Email already registered');
+    if (conflict) {
+      throw new BadRequestException('User already exists');
+    }
 
-    const hash = await bcrypt.hash(dto.password, 12);
-
+    const passwordHash = await this.hash(dto.password);
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
-        passwordHash: hash,
-        displayName: dto.displayName,
         phone: dto.phone,
-        deviceId: dto.deviceId,
+        displayName: dto.displayName,
+        passwordHash,
         isVerified: false,
       },
     });
 
-    const tokens = await this.generateTokens(user.id, dto.deviceId);
+    await this.authLogService.log({
+      userId: user.id,
+      identifier: dto.email ?? dto.phone ?? undefined,
+      outcome: 'registration',
+      ip,
+      userAgent,
+      deviceId: dto.deviceId,
+    });
+
+    const tokens = await this.issueTokens(user.id, dto.deviceId ?? 'unknown');
     return { user, ...tokens };
   }
 
-  // ----------------- LOGIN -----------------
-  async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
-
-    if (!user.passwordHash)
-      throw new UnauthorizedException('Invalid credentials');
-
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
-
-    const tokens = await this.generateTokens(user.id, dto.deviceId);
-    await this.updateLastLogin(user.id);
-    return { user, ...tokens };
-  }
-
-  // ----------------- SOCIAL LOGIN -----------------
-  async socialLogin(dto: SocialLoginDto) {
-    const providerIdField = `${dto.provider.toLowerCase()}Id`;
-    let user = await this.prisma.user.findUnique({
-      where: { [providerIdField]: dto.socialId },
-    });
-
-    if (!user) {
-      const userData: Record<string, any> = {
-        displayName: dto.displayName,
-        email: dto.email,
-        deviceId: dto.deviceId,
-        [providerIdField]: dto.socialId,
-      };
-      user = await this.prisma.user.create({
-        data: userData,
-      });
+  async validateUser(identifier: string, password: string) {
+    if (!identifier) {
+      throw new BadRequestException('email or phone is required');
     }
-
-    const tokens = await this.generateTokens(user.id, dto.deviceId);
-    await this.updateLastLogin(user.id);
-    return { user, ...tokens };
-  }
-
-  // ----------------- REFRESH TOKEN -----------------
-  async refreshToken(dto: RefreshTokenDto) {
-    // Find user with matching refresh token hash and deviceId
     const user = await this.prisma.user.findFirst({
       where: {
-        deviceId: dto.deviceId,
-        refreshTokenHash: await this.hashToken(dto.refreshToken),
+        OR: [{ email: identifier }, { phone: identifier }],
       },
     });
-    if (!user) throw new UnauthorizedException('Invalid refresh token');
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      await this.authLogService.log({
+        userId: user.id,
+        identifier,
+        outcome: 'login_failure',
+      });
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    return user;
+  }
 
-    const tokens = await this.generateTokens(user.id, dto.deviceId);
-
-    // Update hashed refresh token in DB (rotation)
+  async login(
+    userId: string,
+    deviceId: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
     await this.prisma.user.update({
-      where: { id: user.id },
-      data: { refreshTokenHash: await this.hashToken(tokens.refreshToken) },
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
     });
+    await this.authLogService.log({
+      userId,
+      identifier: user.email ?? user.phone ?? undefined,
+      outcome: 'login_success',
+      deviceId,
+      ip,
+      userAgent,
+    });
+    const tokens = await this.issueTokens(userId, deviceId);
+    return { user, ...tokens };
+  }
 
+  socialLogin(_dto: SocialLoginDto, _ip?: string, _userAgent?: string) {
+    // TODO: Implement social login logic
+    // - Verify OAuth token with provider
+    // - Find or create user with provider ID
+    // - Issue JWT tokens
+    throw new Error('Social login not yet implemented');
+  }
+
+  async refreshTokens(userId: string, dto: RefreshTokenDto) {
+    const device = await this.deviceService.validateRefreshToken(
+      userId,
+      dto.deviceId,
+    );
+    if (!device || !device.refreshTokenHash) {
+      await this.authLogService.log({
+        userId,
+        outcome: 'refresh_failure',
+        deviceId: dto.deviceId,
+      });
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const match = await bcrypt.compare(
+      dto.refreshToken,
+      device.refreshTokenHash,
+    );
+    if (!match) {
+      await this.deviceService.revokeDevice(userId, dto.deviceId);
+      await this.authLogService.log({
+        userId,
+        outcome: 'refresh_failure',
+        deviceId: dto.deviceId,
+      });
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const tokens = await this.issueTokens(userId, dto.deviceId);
+    await this.authLogService.log({
+      userId,
+      outcome: 'refresh_success',
+      deviceId: dto.deviceId,
+    });
     return tokens;
   }
 
-  // ----------------- LOGOUT -----------------
   async logout(userId: string, dto: LogoutDto) {
-    await this.prisma.user.updateMany({
-      where: { id: userId, deviceId: dto.deviceId },
-      data: { refreshTokenHash: null },
+    await this.deviceService.revokeDevice(userId, dto.deviceId);
+    await this.authLogService.log({
+      userId,
+      deviceId: dto.deviceId,
+      outcome: 'logout',
     });
     return { success: true };
   }
 
-  // ----------------- LOGOUT SPECIFIC DEVICE -----------------
-  async logoutDevice(userId: string, dto: LogoutDeviceDto) {
-    await this.prisma.user.updateMany({
-      where: { id: userId, deviceId: dto.deviceId },
-      data: { refreshTokenHash: null },
-    });
-    return { success: true };
+  async listDevices(userId: string) {
+    return this.deviceService.list(userId);
   }
 
-  // ----------------- FORGOT PASSWORD -----------------
-  async forgotPassword(dto: ForgotPasswordDto) {
-    let user;
-    if (dto.email) {
-      user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    } else if (dto.phone) {
-      user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
-    }
-
-    if (!user) throw new NotFoundException('User not found');
-
-    const otp = this.generateOTP();
-    // TODO: send OTP via SMS or email
-    // save OTP to DB or cache (Redis) with expiration
-    return { message: 'OTP sent', otp }; // remove otp in production, just for dev/testing
-  }
-
-  // ----------------- RESET PASSWORD -----------------
-  async resetPassword(dto: ResetPasswordDto) {
-    // TODO: validate OTP from DB/Redis
-    const user = await this.prisma.user.findFirst({
-      where: { deviceId: dto.deviceId },
-    });
-    if (!user) throw new UnauthorizedException('Invalid OTP or user');
-
-    const hash = await bcrypt.hash(dto.newPassword, 12);
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: hash, refreshTokenHash: null }, // invalidate old tokens
-    });
-
-    return { success: true };
-  }
-
-  // ----------------- VERIFY OTP / EMAIL -----------------
-  async verify(dto: VerifyDto, userId: string) {
-    // TODO: check OTP validity
+  async verifyOtp(userId: string, _dto: VerifyOtpDto) {
+    // TODO: Placeholder for real OTP verification (Redis-backed)
     await this.prisma.user.update({
       where: { id: userId },
       data: { isVerified: true },
@@ -177,37 +190,42 @@ export class AuthServiceV1 {
     return { success: true };
   }
 
-  // ----------------- HELPER: GENERATE TOKENS -----------------
-  private async generateTokens(userId: string, deviceId?: string) {
+  async ensureRole(userId: string, roles: Role[]) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !roles.includes(user.role)) {
+      throw new ForbiddenException('Insufficient role');
+    }
+    return user;
+  }
+
+  private async issueTokens(
+    userId: string,
+    deviceId: string,
+  ): Promise<TokenPair> {
     const payload = { sub: userId, deviceId };
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
-
-    // store hashed refresh token in DB for deviceId
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { refreshTokenHash: await this.hashToken(refreshToken), deviceId },
-    });
-
+    const accessOpts: any = {
+      secret: this.config.getJwtAccessTokenSecret(),
+      expiresIn: this.config.getJwtAccessExpiresIn(),
+    };
+    const refreshOpts: any = {
+      secret: this.config.getJwtRefreshTokenSecret(),
+      expiresIn: this.config.getJwtRefreshExpiresIn(),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const accessToken = this.jwtService.sign(payload, accessOpts);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const refreshToken = this.jwtService.sign(payload, refreshOpts);
+    const refreshTokenHash = await this.hash(refreshToken);
+    await this.deviceService.setRefreshToken(
+      userId,
+      deviceId,
+      refreshTokenHash,
+    );
     return { accessToken, refreshToken };
   }
 
-  // ----------------- HELPER: HASH TOKEN -----------------
-  private async hashToken(token: string) {
-    const salt = await bcrypt.genSalt(12);
-    return bcrypt.hash(token, salt);
-  }
-
-  // ----------------- HELPER: UPDATE LAST LOGIN -----------------
-  private async updateLastLogin(userId: string) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { lastLoginAt: new Date() },
-    });
-  }
-
-  // ----------------- HELPER: GENERATE OTP -----------------
-  private generateOTP() {
-    return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  private hash(value: string) {
+    const rounds = this.config.getBcryptSaltRounds();
+    return bcrypt.hash(value, rounds);
   }
 }

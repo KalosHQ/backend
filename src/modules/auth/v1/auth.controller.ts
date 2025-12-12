@@ -1,66 +1,120 @@
-import { Controller, Post, Get, Body, Req } from '@nestjs/common';
-import { FastifyRequest } from 'fastify';
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
-  ForgotPasswordDto,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { FastifyReply, FastifyRequest } from 'fastify';
+import {
   LoginDto,
-  LogoutDeviceDto,
-  LogoutDto,
+  RegisterDto,
   RefreshTokenDto,
-  ResetPasswordDto,
-  SignupDto,
-  SocialLoginDto,
-  VerifyDto,
+  LogoutDto,
+  VerifyOtpDto,
 } from './dto/auth.dto';
+import { AuthServiceV1 } from './auth.service';
+import { AppConfigService } from 'src/config/config.service';
+import { LocalAuthGuard } from './guards/local-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
 
 @Controller({ path: 'auth', version: '1' })
 export class AuthControllerV1 {
-  @Post('signup')
-  async signup(@Body() body: SignupDto) {
-    // handle email/password registration
+  constructor(
+    private readonly authService: AuthServiceV1,
+    private readonly config: AppConfigService,
+  ) {}
+
+  @Post('register')
+  async register(
+    @Body() body: RegisterDto,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const result = await this.authService.register(
+      body,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    this.setRefreshCookie(res, result.refreshToken);
+    return { user: result.user, accessToken: result.accessToken };
   }
 
+  @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Body() body: LoginDto) {
-    // handle login
+  async login(
+    @CurrentUser() user: any,
+    @Body() body: LoginDto,
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const result = await this.authService.login(
+      user.id as string,
+      body.deviceId ?? 'unknown',
+      req.ip,
+      req.headers['user-agent'],
+    );
+    this.setRefreshCookie(res, result.refreshToken);
+    return { user: result.user, accessToken: result.accessToken };
   }
 
   @Post('social-login')
-  async socialLogin(@Body() body: SocialLoginDto) {
-    // handle social OAuth login
+  socialLogin() {
+    // TODO: Implement social login (Google/Facebook OAuth)
+    // Parameters: body: SocialLoginDto, req: FastifyRequest, res: FastifyReply
+    throw new Error('Social login not yet implemented');
   }
 
+  @UseGuards(JwtRefreshGuard)
+  @Post('refresh')
+  async refresh(
+    @CurrentUser() user: any,
+    @Body() body: RefreshTokenDto,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const tokens = await this.authService.refreshTokens(user.sub, body);
+    this.setRefreshCookie(res, tokens.refreshToken);
+    return { accessToken: tokens.accessToken };
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
-  async logout(@Body() body: LogoutDto, @Req() req: FastifyRequest) {
-    // invalidate current device token
+  async logout(
+    @CurrentUser() user: any,
+    @Body() body: LogoutDto,
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    await this.authService.logout(user.sub, body);
+    res.clearCookie('refreshToken');
+    return { success: true };
   }
 
-  @Post('refresh-token')
-  async refreshToken(@Body() body: RefreshTokenDto) {
-    // issue new access token (and optionally new refresh token)
-  }
-
-  @Post('forgot-password')
-  async forgotPassword(@Body() body: ForgotPasswordDto) {
-    // send OTP/email for password reset
-  }
-
-  @Post('reset-password')
-  async resetPassword(@Body() body: ResetPasswordDto) {
-    // validate OTP/email and reset password
-  }
-
-  @Post('verify')
-  async verify(@Body() body: VerifyDto) {
-    // verify email/phone OTP
-  }
-
+  @UseGuards(JwtAuthGuard)
   @Get('devices')
-  async listDevices(@Req() req: FastifyRequest) {
-    // return active devices for this user
+  async devices(@CurrentUser() user: any) {
+    return this.authService.listDevices(user.sub);
   }
 
-  @Post('logout-device')
-  async logoutDevice(@Body() body: LogoutDeviceDto) {
-    // log out a specific device
+  @UseGuards(JwtAuthGuard)
+  @Post('verify-otp')
+  async verify(@CurrentUser() user: any, @Body() body: VerifyOtpDto) {
+    return this.authService.verifyOtp(user.sub, body);
+  }
+
+  private setRefreshCookie(res: FastifyReply, token: string) {
+    res.setCookie('refreshToken', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: this.config.getNodeEnv() === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
   }
 }

@@ -4,21 +4,23 @@ import {
   IsOptional,
   IsString,
   IsEnum,
-  IsArray,
-  ArrayNotEmpty,
-  IsUUID,
   MinLength,
+  IsUUID,
 } from 'class-validator';
 
 export enum SocialProvider {
   GOOGLE = 'google',
   FACEBOOK = 'facebook',
-  APPLE = 'apple',
 }
 
-export class SignupDto {
+export class RegisterDto {
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @IsString()
   @MinLength(8)
@@ -27,16 +29,6 @@ export class SignupDto {
   @IsOptional()
   @IsString()
   displayName?: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayNotEmpty()
-  @IsString({ each: true })
-  stylePreferences?: string[];
 
   @IsOptional()
   @IsString()
@@ -53,6 +45,7 @@ export class LoginDto {
   phone?: string;
 
   @IsString()
+  @MinLength(8)
   password!: string;
 
   @IsOptional()
@@ -60,11 +53,38 @@ export class LoginDto {
   deviceId?: string;
 }
 
+export class RefreshTokenDto {
+  @IsNotEmpty()
+  @IsString()
+  refreshToken!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  deviceId!: string;
+}
+
+export class LogoutDto {
+  @IsNotEmpty()
+  @IsString()
+  deviceId!: string;
+}
+
+export class LogoutDeviceDto {
+  @IsNotEmpty()
+  @IsUUID()
+  deviceId!: string;
+}
+
+export class VerifyOtpDto {
+  @IsNotEmpty()
+  @IsString()
+  otp!: string;
+}
+
 export class SocialLoginDto {
   @IsEnum(SocialProvider)
   provider!: SocialProvider;
 
-  @IsNotEmpty()
   @IsString()
   socialId!: string;
 
@@ -79,60 +99,4 @@ export class SocialLoginDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
-}
-
-export class RefreshTokenDto {
-  @IsNotEmpty()
-  @IsString()
-  refreshToken!: string;
-
-  @IsOptional()
-  @IsString()
-  deviceId?: string;
-}
-
-export class LogoutDto {
-  @IsOptional()
-  @IsString()
-  deviceId?: string;
-}
-
-export class LogoutDeviceDto {
-  @IsNotEmpty()
-  @IsUUID()
-  deviceId!: string;
-}
-
-export class ForgotPasswordDto {
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-}
-
-export class ResetPasswordDto {
-  @IsNotEmpty()
-  @IsString()
-  otp!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  newPassword!: string;
-
-  @IsOptional()
-  @IsString()
-  deviceId?: string;
-}
-
-export class VerifyDto {
-  @IsNotEmpty()
-  @IsString()
-  otp!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  type!: 'email' | 'phone';
 }

@@ -8,6 +8,7 @@ import {
   Req,
   Res,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import {
@@ -24,6 +25,7 @@ import {
   RefreshTokenDto,
   LogoutDto,
   VerifyOtpDto,
+  SocialProvider,
 } from './dto/auth.dto';
 import { AuthServiceV1 } from './auth.service';
 import { AppConfigService } from 'src/config/config.service';
@@ -31,6 +33,8 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { AuthGuard } from '@nestjs/passport';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @ApiTags('Authentication')
 @Controller({ path: 'auth', version: '1' })
@@ -40,34 +44,11 @@ export class AuthControllerV1 {
     private readonly config: AppConfigService,
   ) {}
 
+  /* ===================== EMAIL / PASSWORD ===================== */
+
   @Post('register')
   @ApiOperation({ summary: 'Register new user account' })
   @ApiBody({ type: RegisterDto })
-  @ApiResponse({
-    status: 201,
-    description: 'User successfully registered',
-    schema: {
-      properties: {
-        user: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            email: { type: 'string' },
-            phone: { type: 'string' },
-            displayName: { type: 'string' },
-            role: {
-              type: 'string',
-              enum: ['USER', 'VENDOR', 'CREATOR', 'ADMIN'],
-            },
-            isVerified: { type: 'boolean' },
-          },
-        },
-        accessToken: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
-  @ApiResponse({ status: 409, description: 'User already exists' })
   async register(
     @Body() body: RegisterDto,
     @Req() req: FastifyRequest,
@@ -85,18 +66,6 @@ export class AuthControllerV1 {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @ApiOperation({ summary: 'Login with email/phone and password' })
-  @ApiBody({ type: LoginDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully logged in',
-    schema: {
-      properties: {
-        user: { type: 'object' },
-        accessToken: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @CurrentUser() user: any,
     @Body() body: LoginDto,
@@ -113,21 +82,47 @@ export class AuthControllerV1 {
     return { user: result.user, accessToken: result.accessToken };
   }
 
+  /* ===================== GOOGLE OAUTH ===================== */
+
+  @Get('google')
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @UseGuards(GoogleAuthGuard)
+  async googleAuth() {
+    // Passport handles redirect
+  }
+
+  @Get('google/callback')
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  @UseGuards(GoogleAuthGuard)
+  async googleCallback(
+    @Req() req: FastifyRequest & { user?: { providerId: string; email: string; name: string } },
+    @Res({ passthrough: true }) res: FastifyReply,
+  ) {
+    const googleUser = req.user;
+    if (!googleUser) {
+      throw new UnauthorizedException('Google user not found on request');
+    }
+
+    const result = await this.authService.socialLogin(
+      {
+        provider: SocialProvider.GOOGLE,
+        socialId: googleUser.providerId,
+        email: googleUser.email,
+        displayName: googleUser.name,
+        deviceId: 'google-oauth',
+      },
+      req.ip,
+      req.headers['user-agent'],
+    );
+
+    this.setRefreshCookie(res, result.refreshToken);
+    return { user: result.user, accessToken: result.accessToken };
+  }
+
+  /* ===================== TOKENS ===================== */
+
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
-  @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  @ApiCookieAuth('refreshToken')
-  @ApiBody({ type: RefreshTokenDto })
-  @ApiResponse({
-    status: 200,
-    description: 'New access token issued',
-    schema: {
-      properties: {
-        accessToken: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refresh(
     @CurrentUser() user: any,
     @Body() body: RefreshTokenDto,
@@ -141,18 +136,6 @@ export class AuthControllerV1 {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Logout from current device' })
-  @ApiBody({ type: LogoutDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Successfully logged out',
-    schema: {
-      properties: {
-        success: { type: 'boolean' },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async logout(
     @CurrentUser() user: any,
     @Body() body: LogoutDto,
@@ -166,23 +149,6 @@ export class AuthControllerV1 {
   @UseGuards(JwtAuthGuard)
   @Get('devices')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'List all active devices for current user' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of devices',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          deviceId: { type: 'string' },
-          lastSeenAt: { type: 'string', format: 'date-time' },
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async devices(@CurrentUser() user: any) {
     return this.authService.listDevices(user.sub);
   }
@@ -190,11 +156,6 @@ export class AuthControllerV1 {
   @UseGuards(JwtAuthGuard)
   @Post('verify-otp')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Verify OTP for user verification' })
-  @ApiBody({ type: VerifyOtpDto })
-  @ApiResponse({ status: 200, description: 'OTP verified successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid OTP' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async verify(@CurrentUser() user: any, @Body() body: VerifyOtpDto) {
     return this.authService.verifyOtp(user.sub, body);
   }

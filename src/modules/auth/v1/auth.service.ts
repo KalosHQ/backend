@@ -18,6 +18,7 @@ import {
   SocialLoginDto,
   LogoutDto,
   VerifyOtpDto,
+  SocialProvider,
 } from './dto/auth.dto';
 import { AppConfigService } from 'src/config/config.service';
 
@@ -122,12 +123,47 @@ export class AuthServiceV1 {
     return { user, ...tokens };
   }
 
-  socialLogin(_dto: SocialLoginDto, _ip?: string, _userAgent?: string) {
-    // TODO: Implement social login logic
-    // - Verify OAuth token with provider
-    // - Find or create user with provider ID
-    // - Issue JWT tokens
-    throw new Error('Social login not yet implemented');
+  async socialLogin(dto: SocialLoginDto, ip?: string, userAgent?: string) {
+    const { provider, socialId, email, displayName, deviceId } = dto;
+
+    const providerKey =
+      provider === SocialProvider.GOOGLE ? 'googleId' : 'facebookId';
+
+    let user =
+      (await this.prisma.user.findFirst({
+        where: { [providerKey]: socialId },
+      })) ??
+      (email
+        ? await this.prisma.user.findFirst({ where: { email } })
+        : null);
+
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          displayName,
+          isVerified: true,
+          [providerKey]: socialId,
+        },
+      });
+    } else if (!user[providerKey]) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { [providerKey]: socialId },
+      });
+    }
+
+    await this.authLogService.log({
+      userId: user.id,
+      identifier: email ?? undefined,
+      outcome: `${provider.toLowerCase()}_login`,
+      deviceId: deviceId ?? 'social',
+      ip,
+      userAgent,
+    });
+
+    const tokens = await this.issueTokens(user.id, deviceId ?? 'social');
+    return { user, ...tokens };
   }
 
   async refreshTokens(userId: string, dto: RefreshTokenDto) {

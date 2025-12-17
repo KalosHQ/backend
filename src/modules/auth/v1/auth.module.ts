@@ -15,6 +15,7 @@ import { FacebookStrategy } from './strategies/facebook.strategy';
 import { RoleGuard } from './guards/role.guard';
 import { VerifiedGuard } from './guards/verified.guard';
 import { AppConfigModule } from 'src/config/config.module';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AppConfigModule } from 'src/config/config.module';
     RoleGuard,
     VerifiedGuard,
     JwtAuthGuard,
+    GoogleAuthGuard,
   ],
   exports: [RoleGuard, VerifiedGuard],
 })

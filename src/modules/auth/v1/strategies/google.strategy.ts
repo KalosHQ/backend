@@ -17,9 +17,10 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const options: StrategyOptions = {
       clientID,
       clientSecret,
-      callbackURL: 'http://localhost:4000/v1/auth/google/callback',
+      callbackURL: config.getGoogleCallbackUrl(),
       scope: ['email', 'profile'],
       passReqToCallback: false,
+      state: false, // Stateless OAuth - using JWT tokens instead of sessions
     };
 
     super(options);

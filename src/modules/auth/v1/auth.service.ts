@@ -133,9 +133,7 @@ export class AuthServiceV1 {
       (await this.prisma.user.findFirst({
         where: { [providerKey]: socialId },
       })) ??
-      (email
-        ? await this.prisma.user.findFirst({ where: { email } })
-        : null);
+      (email ? await this.prisma.user.findFirst({ where: { email } }) : null);
 
     if (!user) {
       user = await this.prisma.user.create({

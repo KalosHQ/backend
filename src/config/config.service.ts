@@ -118,4 +118,22 @@ export class AppConfigService {
   getGoogleClientSecret(): string | undefined {
     return this.config.get<string>('GOOGLE_CLIENT_SECRET');
   }
+
+  getGoogleCallbackUrl(): string {
+    return (
+      this.config.get<string>('GOOGLE_CALLBACK_URL') ??
+      'http://localhost:4000/v1/auth/google/callback'
+    );
+  }
+
+  getFacebookCallbackUrl(): string {
+    return (
+      this.config.get<string>('FACEBOOK_CALLBACK_URL') ??
+      'http://localhost:4000/v1/auth/facebook/callback'
+    );
+  }
+
+  getAppUrl(): string {
+    return this.config.get<string>('APP_URL') ?? 'http://localhost:4000';
+  }
 }

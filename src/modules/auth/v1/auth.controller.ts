@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/await-thenable */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
@@ -8,17 +10,9 @@ import {
   Req,
   Res,
   UseGuards,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiCookieAuth,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import {
   LoginDto,
   RegisterDto,
@@ -33,7 +27,6 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { AuthGuard } from '@nestjs/passport';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @ApiTags('Authentication')
@@ -91,17 +84,43 @@ export class AuthControllerV1 {
     // Passport handles redirect
   }
 
+  // @Get('google/callback')
+  // @UseGuards(GoogleAuthGuard)
+  // async googleCallback(
+  //   @Req() req: FastifyRequest & { user?: any },
+  //   @Res() res: FastifyReply,
+  // ) {
+  //   const googleUser = req.user;
+  //   if (!googleUser) {
+  //     throw new UnauthorizedException('Google user not found on request');
+  //   }
+
+  //   const result = await this.authService.socialLogin(
+  //     {
+  //       provider: SocialProvider.GOOGLE,
+  //       socialId: googleUser.providerId,
+  //       email: googleUser.email,
+  //       displayName: googleUser.name,
+  //       deviceId: 'google-oauth',
+  //     },
+  //     req.ip,
+  //     req.headers['user-agent'],
+  //   );
+
+  //   this.setRefreshCookie(res, result.refreshToken);
+
+  //   return res.redirect(
+  //     `http://localhost:3000/auth/callback?accessToken=${result.accessToken}`,
+  //   );
+  // }
+
   @Get('google/callback')
-  @ApiOperation({ summary: 'Google OAuth callback' })
   @UseGuards(GoogleAuthGuard)
   async googleCallback(
-    @Req() req: FastifyRequest & { user?: { providerId: string; email: string; name: string } },
-    @Res({ passthrough: true }) res: FastifyReply,
+    @Req() req: FastifyRequest & { user?: any },
+    @Res() res: FastifyReply,
   ) {
     const googleUser = req.user;
-    if (!googleUser) {
-      throw new UnauthorizedException('Google user not found on request');
-    }
 
     const result = await this.authService.socialLogin(
       {
@@ -116,7 +135,11 @@ export class AuthControllerV1 {
     );
 
     this.setRefreshCookie(res, result.refreshToken);
-    return { user: result.user, accessToken: result.accessToken };
+
+    return res.status(200).send({
+      user: result.user,
+      accessToken: result.accessToken,
+    });
   }
 
   /* ===================== TOKENS ===================== */

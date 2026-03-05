@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String                @id @default(uuid())
+  email            String?               @unique
+  phone            String?               @unique
+  passwordHash     String?
+  displayName      String?
+  profilePicture   String?
+  role             Role                  @default(USER)
+  deviceId         String?               @db.VarChar(255)
+  refreshTokenHash String?
+  isVerified       Boolean               @default(false)
+  wardrobeUploaded Boolean               @default(false)
+  lastLoginAt      DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  googleId         String?               @unique
+  facebookId       String?               @unique
+
+  stylePreferences UserStylePreference[]
+  verificationRequests VerificationRequest[]
+  devices          Device[]
+  authLogs         AuthLog[]
+  auditLogs        AuditLog[]            @relation("audit_user")
+}
+
+model Style {
+  id          String                  @id @default(uuid())
+  name        String                  @unique
+  description String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  users       UserStylePreference[]
+}
+
+model UserStylePreference {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  style     Style    @relation(fields: [styleId], references: [id])
+  styleId   String
+  score     Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, styleId])
+}
+
+model Device {
+  id               String   @id @default(uuid())
+  user             User     @relation(fields: [userId], references: [id])
+  userId           String
+  deviceId         String   @db.VarChar(255)
+  refreshTokenHash String?
+  lastSeenAt       DateTime?
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, deviceId])
+}
+
+model VerificationRequest {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  type        VerificationType
+  status      VerificationStatus @default(PENDING)
+  payload     Json?
+  adminId     String?
+  reviewNotes String?
+  submittedAt DateTime @default(now())
+  reviewedAt  DateTime?
+  attachments VerificationAttachment[]
+}
+
+model VerificationAttachment {
+  id         String   @id @default(uuid())
+  request    VerificationRequest @relation(fields: [requestId], references: [id])
+  requestId  String
+  path       String
+  filename   String
+  mimeType   String
+  uploadedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  user      User?    @relation("audit_user", fields: [userId], references: [id])
+  userId    String?
+  adminId   String?
+  action    String
+  meta      Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+model AuthLog {
+  id           String   @id @default(uuid())
+  user         User?    @relation(fields: [userId], references: [id])
+  userId       String?
+  identifier   String?  // email or phone
+  outcome      String
+  ip           String?
+  userAgent    String?
+  deviceId     String?
+  createdAt    DateTime @default(now())
+}
+
+enum Role {
+  USER
+  VENDOR
+  CREATOR
+  ADMIN
+}
+
+enum VerificationType {
+  CREATOR
+  VENDOR
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

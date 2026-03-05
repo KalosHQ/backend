@@ -14,17 +14,45 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from 'src/modules/auth/v1/guards/jwt-auth.guard';
 import { VerifiedGuard } from 'src/modules/auth/v1/guards/verified.guard';
+import { SetModelCustomizationDto } from './dto/onboarding.dto';
+import { CurrentUser } from 'src/modules/auth/v1/decorators/current-user.decorator';
+
+type AuthenticatedUser = { sub: string };
 
 @ApiTags('Users')
-@Controller('users')
+@Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post('onboarding/model-customization')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Submit styles + model customization and trigger Generate Model flow',
+  })
+  @ApiBody({ type: SetModelCustomizationDto })
+  setModelCustomization(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: SetModelCustomizationDto,
+  ) {
+    return this.usersService.setModelCustomization(user.sub, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('onboarding/status')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get current onboarding state' })
+  getOnboardingStatus(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getOnboardingStatus(user.sub);
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard, VerifiedGuard)

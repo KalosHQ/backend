@@ -12,7 +12,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export enum ShopperStyle {
   MINIMALIST = 'minimalist',
   STREET_WEAR = 'street wear',
-  Y2K = 'y2k',
+  Y2K = 'y2kr',
   CASUAL = 'casual',
   FORMAL = 'formal',
   VINTAGE = 'vintage',

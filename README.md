@@ -372,6 +372,8 @@ See `Dockerfile` and `docker-compose.yml` for containerized deployment.
 - **DigitalOcean**: App Platform or Droplets
 - **Railway**: Simple deployment with Postgres
 
+For Railway-specific setup, see [docs/RAILWAY.md](./docs/RAILWAY.md).
+
 ## 👥 Team Development
 
 This is an internal project for the Kalos team. For development guidelines, workflows, and coding standards, see [DEVELOPMENT.md](./DEVELOPMENT.md).

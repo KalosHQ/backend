@@ -361,10 +361,6 @@ pnpm run start:prod
 - Use strong, unique secrets for JWT and cookies
 - Set NODE_ENV=production
 
-### Docker Deployment
-
-See `Dockerfile` and `docker-compose.yml` for containerized deployment.
-
 ### Recommended Platforms
 
 - **AWS**: EC2, ECS, or Elastic Beanstalk

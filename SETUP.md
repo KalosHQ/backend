@@ -81,20 +81,6 @@ curl http://localhost:4000
 
 You should get a response from the API! 🎉
 
-## 🐳 Alternative: Docker Setup
-
-If you prefer Docker:
-
-```bash
-# Start everything (app + database)
-docker-compose up -d
-
-# View logs
-docker-compose logs -f app
-
-# Access at http://localhost:4000
-```
-
 ## 🧪 Run Tests
 
 ```bash
@@ -196,10 +182,6 @@ pnpm test:watch       # Watch mode
 pnpm test:e2e         # E2E tests
 pnpm test:cov         # With coverage
 
-# Docker
-docker-compose up -d           # Start services
-docker-compose logs -f app     # View logs
-docker-compose down            # Stop services
 ```
 
 ## 📖 Documentation Index
@@ -208,7 +190,6 @@ docker-compose down            # Stop services
 - **DEVELOPMENT.md** - Team development guide
 - **docs/ARCHITECTURE.md** - System architecture
 - **docs/API.md** - API documentation
-- **docs/DOCKER.md** - Docker guide
 - **.env.example** - Environment variables reference
 
 ## 💬 Need Help?

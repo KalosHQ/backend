@@ -53,19 +53,6 @@ This guide outlines development standards and workflows for the Kalos team.
    pnpm dev
    ```
 
-### Using Docker (Alternative)
-
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f app
-
-# Stop services
-docker-compose down
-```
-
 ## 🔄 Development Workflow
 
 ### Branch Strategy
@@ -460,10 +447,6 @@ pnpm prisma:generate
 pnpm prisma:migrate
 pnpm prisma:studio
 
-# Docker
-docker-compose up -d
-docker-compose logs -f
-docker-compose down
 ```
 
 ---

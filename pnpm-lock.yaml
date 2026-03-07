@@ -101,6 +101,9 @@ importers:
       pg:
         specifier: ^8.16.3
         version: 8.16.3
+      prisma:
+        specifier: ^7.0.1
+        version: 7.0.1(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -165,9 +168,6 @@ importers:
       prettier:
         specifier: ^3.4.2
         version: 3.7.3
-      prisma:
-        specifier: ^7.0.1
-        version: 7.0.1(@types/react@19.2.7)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
       rimraf:
         specifier: ^6.0.1
         version: 6.1.2

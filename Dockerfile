@@ -39,7 +39,6 @@ RUN pnpm install --prod --frozen-lockfile
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/generated ./generated
 COPY --from=builder /app/prisma ./prisma
 
 # Expose port

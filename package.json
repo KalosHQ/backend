@@ -30,7 +30,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:setup": "pnpm prisma:generate && pnpm prisma:migrate",
     "setup": "pnpm install && pnpm db:setup",
-    "postinstall": "prisma generate",
+    "postinstall": "echo 'Skipping postinstall prisma generate'",
     "dev": "pnpm start:dev",
     "clean": "rimraf dist node_modules coverage .turbo",
     "typecheck": "tsc --noEmit"

@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,7 +13,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiBody,
+  ApiResponse,
+} from '@nestjs/swagger';
 import {
   LoginDto,
   RegisterDto,
@@ -20,6 +27,8 @@ import {
   LogoutDto,
   VerifyOtpDto,
   SocialProvider,
+  AuthInitResponseDto,
+  AuthInitRequestDto,
 } from './dto/auth.dto';
 import { AuthServiceV1 } from './auth.service';
 import { AppConfigService } from 'src/config/config.service';
@@ -39,9 +48,43 @@ export class AuthControllerV1 {
 
   /* ===================== EMAIL / PASSWORD ===================== */
 
+  @Post('register/init')
+  @ApiOperation({
+    summary:
+      'Initialize register flow and return a short-lived token required by POST /v1/auth/register',
+  })
+  @ApiBody({ type: AuthInitRequestDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Register init token created',
+    type: AuthInitResponseDto,
+  })
+  registerInit(@Body() body: AuthInitRequestDto) {
+    return this.authService.createAuthInitToken('register', body.deviceId);
+  }
+
+  @Post('login/init')
+  @ApiOperation({
+    summary:
+      'Initialize login flow and return a short-lived token required by POST /v1/auth/login',
+  })
+  @ApiBody({ type: AuthInitRequestDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Login init token created',
+    type: AuthInitResponseDto,
+  })
+  loginInit(@Body() body: AuthInitRequestDto) {
+    return this.authService.createAuthInitToken('login', body.deviceId);
+  }
+
   @Post('register')
   @ApiOperation({ summary: 'Register new user account' })
   @ApiBody({ type: RegisterDto })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid, expired, or missing register init token',
+  })
   async register(
     @Body() body: RegisterDto,
     @Req() req: FastifyRequest,
@@ -59,6 +102,11 @@ export class AuthControllerV1 {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @ApiOperation({ summary: 'Login with email/phone and password' })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials or invalid/missing login init token',
+  })
   async login(
     @CurrentUser() user: any,
     @Body() body: LoginDto,
@@ -68,6 +116,7 @@ export class AuthControllerV1 {
     const result = await this.authService.login(
       user.id as string,
       body.deviceId ?? 'unknown',
+      body.initToken,
       req.ip,
       req.headers['user-agent'],
     );
@@ -149,9 +198,23 @@ export class AuthControllerV1 {
   async refresh(
     @CurrentUser() user: any,
     @Body() body: RefreshTokenDto,
+    @Req() req: FastifyRequest,
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    const tokens = await this.authService.refreshTokens(user.sub, body);
+    const refreshToken =
+      body.refreshToken ?? (req.cookies as Record<string, string> | undefined)?.refreshToken;
+    const deviceId = body.deviceId ?? (user.deviceId as string | undefined);
+
+    if (!refreshToken || !deviceId) {
+      throw new BadRequestException(
+        'refreshToken and deviceId are required (body or cookie/token payload)',
+      );
+    }
+
+    const tokens = await this.authService.refreshTokens(user.sub, {
+      refreshToken,
+      deviceId,
+    });
     this.setRefreshCookie(res, tokens.refreshToken);
     return { accessToken: tokens.accessToken };
   }
@@ -167,6 +230,19 @@ export class AuthControllerV1 {
     await this.authService.logout(user.sub, body);
     res.clearCookie('refreshToken');
     return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Get current authenticated user with style preferences and related style details',
+  })
+  @ApiResponse({ status: 200, description: 'Authenticated user details' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async me(@CurrentUser() user: any) {
+    return this.authService.currentAuthenticatedUser(user.sub);
   }
 
   @UseGuards(JwtAuthGuard)

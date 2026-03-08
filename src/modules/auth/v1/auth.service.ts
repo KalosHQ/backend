@@ -23,6 +23,7 @@ import {
 import { AppConfigService } from 'src/config/config.service';
 
 type TokenPair = { accessToken: string; refreshToken: string };
+type AuthInitFlow = 'login' | 'register';
 
 @Injectable()
 export class AuthServiceV1 {
@@ -34,7 +35,49 @@ export class AuthServiceV1 {
     private readonly config: AppConfigService,
   ) {}
 
+  createAuthInitToken(flow: AuthInitFlow, deviceId?: string) {
+    const token = this.jwtService.sign(
+      { flow, deviceId: deviceId ?? null, kind: 'auth-init' },
+      {
+        secret: this.config.getJwtAccessTokenSecret(),
+        expiresIn: '5m',
+      },
+    );
+    return { token, flow, expiresInSeconds: 300 };
+  }
+
+  validateAuthInitToken(
+    initToken: string,
+    expectedFlow: AuthInitFlow,
+    deviceId?: string,
+  ) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(initToken, {
+        secret: this.config.getJwtAccessTokenSecret(),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid or expired init token');
+    }
+
+    if (!payload || payload.kind !== 'auth-init') {
+      throw new UnauthorizedException('Invalid init token');
+    }
+
+    if (payload.flow !== expectedFlow) {
+      throw new UnauthorizedException('Init token does not match auth flow');
+    }
+
+    if (payload.deviceId && deviceId && payload.deviceId !== deviceId) {
+      throw new UnauthorizedException(
+        'Init token does not match the provided device',
+      );
+    }
+  }
+
   async register(dto: RegisterDto, ip?: string, userAgent?: string) {
+    this.validateAuthInitToken(dto.initToken, 'register', dto.deviceId);
+
     if (!dto.email && !dto.phone) {
       throw new BadRequestException('email or phone is required');
     }
@@ -102,9 +145,12 @@ export class AuthServiceV1 {
   async login(
     userId: string,
     deviceId: string,
+    initToken: string,
     ip?: string,
     userAgent?: string,
   ) {
+    this.validateAuthInitToken(initToken, 'login', deviceId);
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
     await this.prisma.user.update({
@@ -165,38 +211,45 @@ export class AuthServiceV1 {
   }
 
   async refreshTokens(userId: string, dto: RefreshTokenDto) {
+    if (!dto.deviceId || !dto.refreshToken) {
+      throw new BadRequestException('refreshToken and deviceId are required');
+    }
+
+    const deviceId = dto.deviceId;
+    const refreshToken = dto.refreshToken;
+
     const device = await this.deviceService.validateRefreshToken(
       userId,
-      dto.deviceId,
+      deviceId,
     );
     if (!device || !device.refreshTokenHash) {
       await this.authLogService.log({
         userId,
         outcome: 'refresh_failure',
-        deviceId: dto.deviceId,
+        deviceId,
       });
       throw new UnauthorizedException('Invalid refresh token');
     }
 
     const match = await bcrypt.compare(
-      dto.refreshToken,
+      refreshToken,
       device.refreshTokenHash,
     );
     if (!match) {
-      await this.deviceService.revokeDevice(userId, dto.deviceId);
+      await this.deviceService.revokeDevice(userId, deviceId);
       await this.authLogService.log({
         userId,
         outcome: 'refresh_failure',
-        deviceId: dto.deviceId,
+        deviceId,
       });
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const tokens = await this.issueTokens(userId, dto.deviceId);
+    const tokens = await this.issueTokens(userId, deviceId);
     await this.authLogService.log({
       userId,
       outcome: 'refresh_success',
-      deviceId: dto.deviceId,
+      deviceId,
     });
     return tokens;
   }
@@ -213,6 +266,26 @@ export class AuthServiceV1 {
 
   async listDevices(userId: string) {
     return this.deviceService.list(userId);
+  }
+
+  async currentAuthenticatedUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        stylePreferences: {
+          include: {
+            style: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    return user;
   }
 
   async verifyOtp(userId: string, _dto: VerifyOtpDto) {

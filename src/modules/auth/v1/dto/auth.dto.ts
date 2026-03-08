@@ -55,6 +55,15 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
+
+  @ApiProperty({
+    description:
+      'One-time init token from POST /v1/auth/register/init used to authorize this register attempt',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  @IsNotEmpty()
+  @IsString()
+  initToken!: string;
 }
 
 export class LoginDto {
@@ -90,24 +99,69 @@ export class LoginDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
-}
 
-export class RefreshTokenDto {
   @ApiProperty({
-    description: 'Refresh token to obtain new access token',
+    description:
+      'One-time init token from POST /v1/auth/login/init used to authorize this login attempt',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
   @IsNotEmpty()
   @IsString()
-  refreshToken!: string;
+  initToken!: string;
+}
 
-  @ApiProperty({
-    description: 'Device identifier associated with the refresh token',
+export class AuthInitRequestDto {
+  @ApiPropertyOptional({
+    description: 'Optional device identifier tied to the init token',
     example: 'device-uuid-123',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  deviceId!: string;
+  deviceId?: string;
+}
+
+export class AuthInitResponseDto {
+  @ApiProperty({
+    description:
+      'Short-lived init token that must be sent in login/register request body',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  @IsString()
+  token!: string;
+
+  @ApiProperty({
+    description: 'Flow this token can be used for',
+    enum: ['login', 'register'],
+    example: 'register',
+  })
+  @IsString()
+  flow!: 'login' | 'register';
+
+  @ApiProperty({
+    description: 'Init token validity in seconds',
+    example: 300,
+  })
+  expiresInSeconds!: number;
+}
+
+export class RefreshTokenDto {
+  @ApiPropertyOptional({
+    description:
+      'Refresh token to obtain new access token (optional when sent via refreshToken cookie)',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Device identifier associated with the refresh token (optional if encoded in refresh token)',
+    example: 'device-uuid-123',
+  })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 }
 
 export class LogoutDto {

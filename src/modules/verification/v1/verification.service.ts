@@ -57,11 +57,15 @@ export class VerificationService {
       await this.repo.addAttachments(request.id, uploads);
     }
 
-    return this.repo.findById(request.id);
+    const created = await this.repo.findById(request.id);
+    return this.mapSignedAttachmentUrls(created);
   }
 
   async listPending() {
-    return this.repo.findPending();
+    const pending = await this.repo.findPending();
+    return Promise.all(
+      pending.map((item) => this.mapSignedAttachmentUrls(item)),
+    );
   }
 
   async approve(id: string, adminId: string, reviewNotes?: string) {
@@ -89,7 +93,8 @@ export class VerificationService {
       action: 'verification_approved',
       meta: { requestId: id, type: request.type, notes: reviewNotes },
     });
-    return this.repo.findById(id);
+    const updated = await this.repo.findById(id);
+    return this.mapSignedAttachmentUrls(updated);
   }
 
   async reject(id: string, adminId: string, reviewNotes?: string) {
@@ -111,6 +116,29 @@ export class VerificationService {
       action: 'verification_rejected',
       meta: { requestId: id, type: request.type, notes: reviewNotes },
     });
-    return this.repo.findById(id);
+    const updated = await this.repo.findById(id);
+    return this.mapSignedAttachmentUrls(updated);
+  }
+
+  private async mapSignedAttachmentUrls(request: any) {
+    if (!request) return request;
+    if (!request.attachments?.length) return request;
+
+    const attachments = await Promise.all(
+      request.attachments.map(async (attachment: any) => {
+        const signedUrl = await this.storage.resolvePrivateFileUrl(
+          attachment.path,
+        );
+        return {
+          ...attachment,
+          url: signedUrl,
+        };
+      }),
+    );
+
+    return {
+      ...request,
+      attachments,
+    };
   }
 }

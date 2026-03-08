@@ -11,6 +11,11 @@ import { AuthLogModule } from './modules/logging/auth-log.module';
 import { AuditModule } from './modules/logging/audit.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { VerificationModule } from './modules/verification/v1/verification.module';
+import { JobsModule } from './modules/jobs/v1/jobs.module';
+import { WardrobeModule } from './modules/wardrobe/v1/wardrobe.module';
+import { TryOnModule } from './modules/tryon/v1/tryon.module';
+import { StylistModule } from './modules/stylist/v1/stylist.module';
+import { AvatarModule } from './modules/avatar/v1/avatar.module';
 
 @Module({
   imports: [
@@ -22,6 +27,11 @@ import { VerificationModule } from './modules/verification/v1/verification.modul
     AuditModule,
     StorageModule,
     VerificationModule,
+    JobsModule,
+    WardrobeModule,
+    TryOnModule,
+    StylistModule,
+    AvatarModule,
     ConfigModule.forRoot(),
     AppConfigModule,
   ],

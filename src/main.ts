@@ -51,6 +51,11 @@ async function bootstrap() {
     .addTag('Authentication', 'User authentication and authorization endpoints')
     .addTag('Users', 'User management endpoints')
     .addTag('Verification', 'Creator and vendor verification endpoints')
+    .addTag('Jobs', 'Asynchronous AI job orchestration and status tracking')
+    .addTag('Wardrobe', 'Wardrobe upload and metadata APIs')
+    .addTag('Avatar', 'Avatar generation APIs')
+    .addTag('TryOn', 'Virtual try-on APIs')
+    .addTag('Stylist', 'AI stylist request APIs')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

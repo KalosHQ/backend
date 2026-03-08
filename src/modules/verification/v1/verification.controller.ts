@@ -22,7 +22,11 @@ export class VerificationController {
   @Post('creator')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Request creator verification' })
-  @ApiResponse({ status: 201, description: 'Verification request submitted' })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Verification request submitted. Attachment paths from private storage include a presigned `url` field.',
+  })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
@@ -45,7 +49,11 @@ export class VerificationController {
   @Post('vendor')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Request vendor verification' })
-  @ApiResponse({ status: 201, description: 'Verification request submitted' })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Verification request submitted. Attachment paths from private storage include a presigned `url` field.',
+  })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({

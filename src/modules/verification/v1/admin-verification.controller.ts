@@ -33,7 +33,8 @@ export class AdminVerificationController {
   })
   @ApiResponse({
     status: 200,
-    description: 'List of pending verification requests',
+    description:
+      'List of pending verification requests. Private attachment paths include a presigned `url` field.',
     schema: {
       type: 'array',
       items: {
@@ -57,7 +58,11 @@ export class AdminVerificationController {
   @Post(':id/approve')
   @ApiOperation({ summary: 'Approve verification request (Admin only)' })
   @ApiParam({ name: 'id', description: 'Verification request ID' })
-  @ApiResponse({ status: 200, description: 'Verification request approved' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Verification request approved. Private attachment paths include a presigned `url` field.',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
   @ApiResponse({ status: 404, description: 'Verification request not found' })
@@ -72,7 +77,11 @@ export class AdminVerificationController {
   @Post(':id/reject')
   @ApiOperation({ summary: 'Reject verification request (Admin only)' })
   @ApiParam({ name: 'id', description: 'Verification request ID' })
-  @ApiResponse({ status: 200, description: 'Verification request rejected' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Verification request rejected. Private attachment paths include a presigned `url` field.',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
   @ApiResponse({ status: 404, description: 'Verification request not found' })

@@ -99,6 +99,32 @@ export class AppConfigService {
     return this.config.get<string>('S3_BUCKET') ?? 'kalos-bucket';
   }
 
+  getS3PrivateBucket(): string {
+    return (
+      this.config.get<string>('S3_PRIVATE_BUCKET') ||
+      this.config.get<string>('S3_BUCKET') ||
+      'kalos-private-storage'
+    );
+  }
+
+  getS3PublicBucket(): string {
+    return (
+      this.config.get<string>('S3_PUBLIC_BUCKET') ?? 'kalos-public-storage'
+    );
+  }
+
+  getAwsRegion(): string {
+    return this.config.get<string>('AWS_REGION') ?? 'us-east-1';
+  }
+
+  getAwsAccessKeyId(): string | undefined {
+    return this.config.get<string>('AWS_ACCESS_KEY_ID');
+  }
+
+  getAwsSecretAccessKey(): string | undefined {
+    return this.config.get<string>('AWS_SECRET_ACCESS_KEY');
+  }
+
   getStorageProvider(): string {
     return this.config.get<string>('STORAGE_PROVIDER') ?? 's3';
   }
@@ -135,5 +161,13 @@ export class AppConfigService {
 
   getAppUrl(): string {
     return this.config.get<string>('APP_URL') ?? 'http://localhost:4000';
+  }
+
+  getRedisUrl(): string {
+    return this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+  }
+
+  getAiWebhookToken(): string | undefined {
+    return this.config.get<string>('AI_WEBHOOK_TOKEN');
   }
 }

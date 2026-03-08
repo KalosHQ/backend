@@ -18,6 +18,8 @@ model User {
   refreshTokenHash String?
   isVerified       Boolean               @default(false)
   wardrobeUploaded Boolean               @default(false)
+  onboardingCompletedAt DateTime?
+  modelGenerationStatus ModelGenerationStatus @default(NOT_STARTED)
   lastLoginAt      DateTime?
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
@@ -30,6 +32,11 @@ model User {
   devices          Device[]
   authLogs         AuthLog[]
   auditLogs        AuditLog[]            @relation("audit_user")
+  modelProfile     UserModelProfile?
+  jobs             Job[]
+  wardrobeItems    WardrobeItem[]
+  avatars          Avatar[]
+  outfits          Outfit[]
 }
 
 model Style {
@@ -53,6 +60,20 @@ model UserStylePreference {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, styleId])
+}
+
+model UserModelProfile {
+  id        String               @id @default(uuid())
+  user      User                 @relation(fields: [userId], references: [id])
+  userId    String               @unique
+  method    ModelCustomizationMethod
+  gender    ModelGender
+  bodyType  ModelBodyType
+  heightCm  Int
+  weightKg  Int
+  photoPath String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
 }
 
 model Device {
@@ -115,6 +136,82 @@ model AuthLog {
   createdAt    DateTime @default(now())
 }
 
+model Job {
+  id             String     @id @default(uuid())
+  user           User       @relation(fields: [userId], references: [id])
+  userId         String
+  type           JobType
+  status         JobStatus  @default(PENDING)
+  priority       Int        @default(50)
+  idempotencyKey String
+  dedupKey       String     @unique
+  input          Json?
+  metadata       Json?
+  resultUrl      String?
+  errorMessage   String?
+  retryCount     Int        @default(0)
+  maxRetries     Int        @default(5)
+  queuedAt       DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([userId, idempotencyKey])
+  @@index([status, type, createdAt])
+  @@index([userId, createdAt])
+}
+
+model WardrobeItem {
+  id             String      @id @default(uuid())
+  user           User        @relation(fields: [userId], references: [id])
+  userId         String
+  originalPath   String
+  processedPath  String?
+  segmentedPath  String?
+  category       String?
+  color          String?
+  metadata       Json?
+  status         JobStatus   @default(PENDING)
+  sourceJobId    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model Avatar {
+  id            String      @id @default(uuid())
+  user          User        @relation(fields: [userId], references: [id])
+  userId        String
+  modelPath     String?
+  previewPath   String?
+  metadata      Json?
+  status        JobStatus   @default(PENDING)
+  sourceJobId   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model Outfit {
+  id             String      @id @default(uuid())
+  user           User        @relation(fields: [userId], references: [id])
+  userId         String
+  avatarId       String?
+  wardrobeItemId String?
+  resultPath     String?
+  metadata       Json?
+  status         JobStatus   @default(PENDING)
+  sourceJobId    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+}
+
 enum Role {
   USER
   VENDOR
@@ -131,4 +228,45 @@ enum VerificationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ModelCustomizationMethod {
+  PHOTO
+  MEASUREMENTS
+}
+
+enum ModelGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum ModelBodyType {
+  SLIM
+  ATHLETIC
+  PLUS_SIZE
+  CURVY
+}
+
+enum ModelGenerationStatus {
+  NOT_STARTED
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum JobType {
+  AVATAR_GENERATION
+  CLOTHING_PROCESSING
+  METADATA_EXTRACTION
+  VIRTUAL_TRYON
+  STYLIST_RECOMMENDATION
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  RETRYING
 }

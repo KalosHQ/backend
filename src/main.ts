@@ -67,6 +67,13 @@ async function bootstrap() {
     },
   });
 
+  // Downloadable OpenAPI JSON spec
+  app.getHttpAdapter().get('/api-docs/openapi.json', (req, res) => {
+    res.header('Content-Type', 'application/json');
+    res.header('Content-Disposition', 'attachment; filename="kalos-openapi.json"');
+    res.send(JSON.stringify(document, null, 2));
+  });
+
   await app.listen(appConfig.getPort(), '0.0.0.0');
 }
 void bootstrap();

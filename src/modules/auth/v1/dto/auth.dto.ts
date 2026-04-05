@@ -8,10 +8,136 @@ import {
   IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 
 export enum SocialProvider {
   GOOGLE = 'google',
   FACEBOOK = 'facebook',
+}
+
+export class StyleResponseDto {
+  @ApiProperty({ example: 'style_123' })
+  id!: string;
+
+  @ApiProperty({ example: 'casual' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'Relaxed everyday aesthetic' })
+  description?: string | null;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  updatedAt!: string;
+}
+
+export class UserStylePreferenceResponseDto {
+  @ApiProperty({ example: 'pref_123' })
+  id!: string;
+
+  @ApiProperty({ example: 'user_123' })
+  userId!: string;
+
+  @ApiProperty({ example: 'style_123' })
+  styleId!: string;
+
+  @ApiPropertyOptional({ example: 0.8 })
+  score?: number | null;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  updatedAt!: string;
+
+  @ApiProperty({ type: StyleResponseDto })
+  style!: StyleResponseDto;
+}
+
+export class AuthUserResponseDto {
+  @ApiProperty({ example: 'user_123' })
+  id!: string;
+
+  @ApiPropertyOptional({ example: 'user@example.com' })
+  email?: string | null;
+
+  @ApiPropertyOptional({ example: '+1234567890' })
+  phone?: string | null;
+
+  @ApiPropertyOptional({ example: 'John Doe' })
+  displayName?: string | null;
+
+  @ApiProperty({ enum: Role, example: Role.USER })
+  role!: Role;
+
+  @ApiProperty({ example: false })
+  isVerified!: boolean;
+
+  @ApiPropertyOptional({ example: '2026-03-08T22:00:00.000Z' })
+  lastLoginAt?: string | null;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  updatedAt!: string;
+}
+
+export class AuthenticatedUserDetailsResponseDto extends AuthUserResponseDto {
+  @ApiProperty({ type: [UserStylePreferenceResponseDto] })
+  stylePreferences!: UserStylePreferenceResponseDto[];
+}
+
+export class AuthSessionResponseDto {
+  @ApiProperty({ type: AuthUserResponseDto })
+  user!: AuthUserResponseDto;
+
+  @ApiProperty({
+    description: 'JWT access token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  accessToken!: string;
+}
+
+export class RefreshAccessTokenResponseDto {
+  @ApiProperty({
+    description: 'New JWT access token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  accessToken!: string;
+}
+
+export class DeviceResponseDto {
+  @ApiProperty({ example: 'device_record_123' })
+  id!: string;
+
+  @ApiProperty({ example: 'user_123' })
+  userId!: string;
+
+  @ApiProperty({ example: 'device-uuid-123' })
+  deviceId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Hashed refresh token associated with this device record',
+    example: '$2b$10$examplehash',
+    nullable: true,
+  })
+  refreshTokenHash?: string | null;
+
+  @ApiPropertyOptional({
+    example: '2026-03-08T22:00:00.000Z',
+    nullable: true,
+  })
+  lastSeenAt?: string | null;
+
+  @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
+  createdAt!: string;
+}
+
+export class SuccessResponseDto {
+  @ApiProperty({ example: true })
+  success!: boolean;
 }
 
 export class RegisterDto {

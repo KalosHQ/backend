@@ -8,7 +8,10 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/v1/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/v1/decorators/current-user.decorator';
-import { AddWardrobeItemDto } from './dto/wardrobe.dto';
+import {
+  AddWardrobeItemDto,
+  AddWardrobeItemResponseDto,
+} from './dto/wardrobe.dto';
 import { WardrobeService } from './wardrobe.service';
 
 @ApiTags('Wardrobe')
@@ -27,7 +30,9 @@ export class WardrobeController {
   @ApiResponse({
     status: 201,
     description: 'Wardrobe item accepted for processing',
+    type: AddWardrobeItemResponseDto,
   })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   addWardrobeItem(
     @CurrentUser() user: { sub: string },
     @Body() body: AddWardrobeItemDto,

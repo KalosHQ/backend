@@ -11,6 +11,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { JobStatusDto } from 'src/modules/jobs/v1/dto/jobs.dto';
 
 export enum ShopperStyle {
   MINIMALIST = 'minimalist',
@@ -184,4 +185,19 @@ export class OnboardingStatusResponseDto {
     description: 'Model generation lifecycle status',
   })
   modelGenerationStatus!: string;
+}
+
+export class OnboardingSubmissionResponseDto extends OnboardingStatusResponseDto {
+  @ApiProperty({
+    example: 'job_123',
+    description: 'Background avatar-generation job id',
+  })
+  job_id!: string;
+
+  @ApiProperty({
+    enum: JobStatusDto,
+    example: JobStatusDto.PENDING,
+    description: 'Initial status of the enqueued avatar generation job',
+  })
+  job_status!: JobStatusDto;
 }

@@ -1,6 +1,12 @@
 import { Body, Controller, Headers, Post } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { AiJobCallbackDto } from './dto/jobs.dto';
+import {
+  ApiBody,
+  ApiHeader,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { AiJobCallbackDto, AiJobCallbackResponseDto } from './dto/jobs.dto';
 import { JobsService } from './jobs.service';
 
 @ApiTags('Jobs')
@@ -17,7 +23,15 @@ export class AiCallbackController {
     required: false,
     description: 'Shared secret for AI callbacks (if configured)',
   })
-  @ApiResponse({ status: 201, description: 'Callback accepted' })
+  @ApiBody({ type: AiJobCallbackDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Callback accepted',
+    type: AiJobCallbackResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid callback status payload' })
+  @ApiResponse({ status: 401, description: 'Invalid AI callback token' })
+  @ApiResponse({ status: 404, description: 'Job not found' })
   aiJobComplete(
     @Headers('x-ai-token') token: string | undefined,
     @Body() body: AiJobCallbackDto,

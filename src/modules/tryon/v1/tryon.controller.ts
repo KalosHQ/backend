@@ -8,7 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/v1/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/v1/decorators/current-user.decorator';
-import { TryOnDto } from './dto/tryon.dto';
+import { TryOnDto, TryOnResponseDto } from './dto/tryon.dto';
 import { TryOnService } from './tryon.service';
 
 @ApiTags('TryOn')
@@ -23,7 +23,13 @@ export class TryOnController {
     summary: 'Create virtual try-on job and return job_id immediately',
   })
   @ApiBody({ type: TryOnDto })
-  @ApiResponse({ status: 201, description: 'Try-on job created' })
+  @ApiResponse({
+    status: 201,
+    description: 'Try-on job created',
+    type: TryOnResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Wardrobe item not found' })
   tryOn(@CurrentUser() user: { sub: string }, @Body() body: TryOnDto) {
     return this.tryOnService.tryOn(user.sub, body);
   }

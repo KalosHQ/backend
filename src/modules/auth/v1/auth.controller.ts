@@ -29,6 +29,11 @@ import {
   SocialProvider,
   AuthInitResponseDto,
   AuthInitRequestDto,
+  AuthSessionResponseDto,
+  RefreshAccessTokenResponseDto,
+  SuccessResponseDto,
+  AuthenticatedUserDetailsResponseDto,
+  DeviceResponseDto,
 } from './dto/auth.dto';
 import { AuthServiceV1 } from './auth.service';
 import { AppConfigService } from 'src/config/config.service';
@@ -82,6 +87,11 @@ export class AuthControllerV1 {
   @ApiOperation({ summary: 'Register new user account' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
+    status: 201,
+    description: 'User registered successfully',
+    type: AuthSessionResponseDto,
+  })
+  @ApiResponse({
     status: 401,
     description: 'Invalid, expired, or missing register init token',
   })
@@ -103,6 +113,11 @@ export class AuthControllerV1 {
   @Post('login')
   @ApiOperation({ summary: 'Login with email/phone and password' })
   @ApiBody({ type: LoginDto })
+  @ApiResponse({
+    status: 201,
+    description: 'User logged in successfully',
+    type: AuthSessionResponseDto,
+  })
   @ApiResponse({
     status: 401,
     description: 'Invalid credentials or invalid/missing login init token',
@@ -165,6 +180,11 @@ export class AuthControllerV1 {
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: 'Google OAuth completed successfully',
+    type: AuthSessionResponseDto,
+  })
   async googleCallback(
     @Req() req: FastifyRequest & { user?: any },
     @Res() res: FastifyReply,
@@ -195,6 +215,22 @@ export class AuthControllerV1 {
 
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
+  @ApiOperation({ summary: 'Exchange refresh token for a new access token' })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Access token refreshed successfully',
+    type: RefreshAccessTokenResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'refreshToken and deviceId are required (body or cookie/token payload)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid refresh token',
+  })
   async refresh(
     @CurrentUser() user: any,
     @Body() body: RefreshTokenDto,
@@ -202,7 +238,8 @@ export class AuthControllerV1 {
     @Res({ passthrough: true }) res: FastifyReply,
   ) {
     const refreshToken =
-      body.refreshToken ?? (req.cookies as Record<string, string> | undefined)?.refreshToken;
+      body.refreshToken ??
+      (req.cookies as Record<string, string> | undefined)?.refreshToken;
     const deviceId = body.deviceId ?? (user.deviceId as string | undefined);
 
     if (!refreshToken || !deviceId) {
@@ -222,6 +259,14 @@ export class AuthControllerV1 {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Logout user from a specific device session' })
+  @ApiBody({ type: LogoutDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Logout completed successfully',
+    type: SuccessResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async logout(
     @CurrentUser() user: any,
     @Body() body: LogoutDto,
@@ -239,7 +284,11 @@ export class AuthControllerV1 {
     summary:
       'Get current authenticated user with style preferences and related style details',
   })
-  @ApiResponse({ status: 200, description: 'Authenticated user details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Authenticated user details',
+    type: AuthenticatedUserDetailsResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async me(@CurrentUser() user: any) {
     return this.authService.currentAuthenticatedUser(user.sub);
@@ -248,6 +297,13 @@ export class AuthControllerV1 {
   @UseGuards(JwtAuthGuard)
   @Get('devices')
   @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'List authenticated user device sessions' })
+  @ApiResponse({
+    status: 200,
+    description: 'Device sessions retrieved successfully',
+    type: [DeviceResponseDto],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async devices(@CurrentUser() user: any) {
     return this.authService.listDevices(user.sub);
   }
@@ -255,6 +311,16 @@ export class AuthControllerV1 {
   @UseGuards(JwtAuthGuard)
   @Post('verify-otp')
   @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Verify one-time password and mark user as verified',
+  })
+  @ApiBody({ type: VerifyOtpDto })
+  @ApiResponse({
+    status: 201,
+    description: 'OTP verified successfully',
+    type: SuccessResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async verify(@CurrentUser() user: any, @Body() body: VerifyOtpDto) {
     return this.authService.verifyOtp(user.sub, body);
   }

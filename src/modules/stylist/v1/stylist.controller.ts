@@ -8,7 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/v1/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/v1/decorators/current-user.decorator';
-import { AskStylistDto } from './dto/stylist.dto';
+import { AskStylistDto, AskStylistResponseDto } from './dto/stylist.dto';
 import { StylistService } from './stylist.service';
 
 @ApiTags('Stylist')
@@ -23,7 +23,12 @@ export class StylistController {
     summary: 'Enqueue AI stylist recommendation request and return job id',
   })
   @ApiBody({ type: AskStylistDto })
-  @ApiResponse({ status: 201, description: 'Stylist job created' })
+  @ApiResponse({
+    status: 201,
+    description: 'Stylist job created',
+    type: AskStylistResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   askStylist(
     @CurrentUser() user: { sub: string },
     @Body() body: AskStylistDto,

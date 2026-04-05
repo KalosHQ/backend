@@ -9,7 +9,10 @@ import {
 import { JwtAuthGuard } from '../../auth/v1/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/v1/decorators/current-user.decorator';
 import { UsersService } from '../../users/v1/users.service';
-import { SetModelCustomizationDto } from '../../users/v1/dto/onboarding.dto';
+import {
+  OnboardingSubmissionResponseDto,
+  SetModelCustomizationDto,
+} from '../../users/v1/dto/onboarding.dto';
 
 @ApiTags('Avatar')
 @Controller({ path: 'user', version: '1' })
@@ -27,7 +30,10 @@ export class AvatarController {
   @ApiResponse({
     status: 201,
     description: 'Avatar generation requested successfully',
+    type: OnboardingSubmissionResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid onboarding payload' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   createAvatar(
     @CurrentUser() user: { sub: string },
     @Body() body: SetModelCustomizationDto,

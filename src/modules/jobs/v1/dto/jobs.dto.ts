@@ -129,3 +129,8 @@ export class AiJobCallbackDto {
   @IsString()
   error?: string;
 }
+
+export class AiJobCallbackResponseDto {
+  @ApiProperty({ example: true })
+  success!: boolean;
+}

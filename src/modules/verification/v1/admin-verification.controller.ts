@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import {
+  ApiBody,
   ApiTags,
   ApiOperation,
   ApiResponse,
@@ -11,8 +12,10 @@ import {
 } from '@nestjs/swagger';
 import { VerificationService } from './verification.service';
 import {
+  AdminVerificationDecisionResponseDto,
   AdminDecisionDto,
   VerificationIdParamDto,
+  VerificationRequestResponseDto,
 } from './dto/verification.dto';
 import { JwtAuthGuard } from 'src/modules/auth/v1/guards/jwt-auth.guard';
 import { RoleGuard, Roles } from 'src/modules/auth/v1/guards/role.guard';
@@ -35,19 +38,7 @@ export class AdminVerificationController {
     status: 200,
     description:
       'List of pending verification requests. Private attachment paths include a presigned `url` field.',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          userId: { type: 'string' },
-          type: { type: 'string', enum: ['CREATOR', 'VENDOR'] },
-          status: { type: 'string', example: 'PENDING' },
-          submittedAt: { type: 'string', format: 'date-time' },
-        },
-      },
-    },
+    type: [VerificationRequestResponseDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
@@ -58,10 +49,12 @@ export class AdminVerificationController {
   @Post(':id/approve')
   @ApiOperation({ summary: 'Approve verification request (Admin only)' })
   @ApiParam({ name: 'id', description: 'Verification request ID' })
+  @ApiBody({ type: AdminDecisionDto })
   @ApiResponse({
     status: 200,
     description:
       'Verification request approved. Private attachment paths include a presigned `url` field.',
+    type: AdminVerificationDecisionResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })
@@ -77,10 +70,12 @@ export class AdminVerificationController {
   @Post(':id/reject')
   @ApiOperation({ summary: 'Reject verification request (Admin only)' })
   @ApiParam({ name: 'id', description: 'Verification request ID' })
+  @ApiBody({ type: AdminDecisionDto })
   @ApiResponse({
     status: 200,
     description:
       'Verification request rejected. Private attachment paths include a presigned `url` field.',
+    type: AdminVerificationDecisionResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin role required' })

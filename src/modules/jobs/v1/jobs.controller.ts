@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -26,10 +27,16 @@ export class JobsController {
   @ApiOperation({
     summary: 'Create asynchronous AI job and enqueue for processing',
   })
+  @ApiBody({ type: CreateJobDto })
   @ApiResponse({
     status: 201,
     type: JobResponseDto,
     description: 'Job accepted and queued. Returns job_id immediately.',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 503,
+    description: 'Queue unavailable. Please retry shortly.',
   })
   create(@CurrentUser() user: { sub: string }, @Body() body: CreateJobDto) {
     return this.jobsService.createJob(user.sub, body);
@@ -43,6 +50,8 @@ export class JobsController {
   })
   @ApiParam({ name: 'id', description: 'Job ID' })
   @ApiResponse({ status: 200, type: JobStatusResponseDto })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Job not found' })
   getStatus(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
     return this.jobsService.getJobStatus(user.sub, id);
   }

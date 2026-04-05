@@ -3,13 +3,17 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import {
+  ApiBody,
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { VerificationService } from './verification.service';
-import { RequestVerificationDto } from './dto/verification.dto';
+import {
+  RequestVerificationDto,
+  VerificationRequestResponseDto,
+} from './dto/verification.dto';
 import { CurrentUser } from 'src/modules/auth/v1/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/v1/guards/jwt-auth.guard';
 
@@ -22,10 +26,12 @@ export class VerificationController {
   @Post('creator')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Request creator verification' })
+  @ApiBody({ type: RequestVerificationDto })
   @ApiResponse({
     status: 201,
     description:
       'Verification request submitted. Attachment paths from private storage include a presigned `url` field.',
+    type: VerificationRequestResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -49,10 +55,12 @@ export class VerificationController {
   @Post('vendor')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Request vendor verification' })
+  @ApiBody({ type: RequestVerificationDto })
   @ApiResponse({
     status: 201,
     description:
       'Verification request submitted. Attachment paths from private storage include a presigned `url` field.',
+    type: VerificationRequestResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })

@@ -19,6 +19,8 @@ This repo includes `nixpacks.toml`, so Railway will:
 1. `pnpm prisma migrate deploy`
 2. `node dist/main`
 
+This is executed by `scripts/start-railway.sh`, which uses `set -eu` so deployment fails immediately if migrations fail.
+
 ## 3. Required Environment Variables
 
 Set these in Railway for the backend service:

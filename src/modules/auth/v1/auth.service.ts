@@ -5,11 +5,15 @@ import {
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
+  UnprocessableEntityException,
+  InternalServerErrorException,
+  ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { DeviceService } from 'src/modules/device/v1/device.service';
 import { AuthLogService } from 'src/modules/logging/auth-log.service';
 import {
@@ -17,13 +21,16 @@ import {
   RefreshTokenDto,
   SocialLoginDto,
   LogoutDto,
-  VerifyOtpDto,
+  VerifyOtpByEmailDto,
   SocialProvider,
 } from './dto/auth.dto';
 import { AppConfigService } from 'src/config/config.service';
+import { MailService } from 'src/modules/mail/mail.service';
+import { OtpPurpose, OtpService } from 'src/modules/otp/v1/otp.service';
 
 type TokenPair = { accessToken: string; refreshToken: string };
 type AuthInitFlow = 'login' | 'register';
+type PublicUser = Record<string, unknown>;
 
 @Injectable()
 export class AuthServiceV1 {
@@ -33,6 +40,8 @@ export class AuthServiceV1 {
     private readonly deviceService: DeviceService,
     private readonly authLogService: AuthLogService,
     private readonly config: AppConfigService,
+    private readonly mailService: MailService,
+    private readonly otpService: OtpService,
   ) {}
 
   createAuthInitToken(flow: AuthInitFlow, deviceId?: string) {
@@ -78,32 +87,47 @@ export class AuthServiceV1 {
   async register(dto: RegisterDto, ip?: string, userAgent?: string) {
     this.validateAuthInitToken(dto.initToken, 'register', dto.deviceId);
 
-    if (!dto.email && !dto.phone) {
-      throw new BadRequestException('email or phone is required');
+    if (!dto.email) {
+      throw new BadRequestException(
+        'email is required for OTP verification flow',
+      );
     }
 
-    const conflict = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          dto.email ? { email: dto.email } : undefined,
-          dto.phone ? { phone: dto.phone } : undefined,
-        ].filter(Boolean) as any,
-      },
-    });
+    let conflict: Awaited<ReturnType<typeof this.prisma.user.findFirst>>;
+    try {
+      conflict = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            dto.email ? { email: dto.email } : undefined,
+            dto.phone ? { phone: dto.phone } : undefined,
+          ].filter(Boolean) as any,
+        },
+      });
+    } catch (error) {
+      this.throwIfSchemaDrift(error);
+      throw error;
+    }
     if (conflict) {
-      throw new BadRequestException('User already exists');
+      throw new ConflictException('User already exists');
     }
 
     const passwordHash = await this.hash(dto.password);
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        phone: dto.phone,
-        displayName: dto.displayName,
-        passwordHash,
-        isVerified: false,
-      },
-    });
+    let user: Awaited<ReturnType<typeof this.prisma.user.create>>;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          phone: dto.phone,
+          displayName: dto.displayName,
+          passwordHash,
+          deviceId: dto.deviceId ?? null,
+          isVerified: false,
+        },
+      });
+    } catch (error) {
+      this.throwIfSchemaDrift(error);
+      throw error;
+    }
 
     await this.authLogService.log({
       userId: user.id,
@@ -114,8 +138,14 @@ export class AuthServiceV1 {
       deviceId: dto.deviceId,
     });
 
-    const tokens = await this.issueTokens(user.id, dto.deviceId ?? 'unknown');
-    return { user, ...tokens };
+    const ttlSeconds = await this.sendVerificationOtp(user);
+    return {
+      user: this.toPublicUser(user),
+      requiresOtpVerification: true,
+      otpExpiresInSeconds: ttlSeconds,
+      message:
+        'Registration successful. We sent a verification OTP to your email.',
+    };
   }
 
   async validateUser(identifier: string, password: string) {
@@ -128,7 +158,7 @@ export class AuthServiceV1 {
       },
     });
     if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnprocessableEntityException('Invalid credentials');
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
@@ -137,8 +167,27 @@ export class AuthServiceV1 {
         identifier,
         outcome: 'login_failure',
       });
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnprocessableEntityException('Invalid credentials');
     }
+
+    if (!user.isVerified) {
+      if (user.email) {
+        try {
+          await this.sendVerificationOtp(user);
+        } catch {
+          // Keep login denial deterministic even if OTP resend fails.
+        }
+      }
+      await this.authLogService.log({
+        userId: user.id,
+        identifier,
+        outcome: 'login_unverified',
+      });
+      throw new UnauthorizedException(
+        'Account not verified. A new OTP has been sent to your email.',
+      );
+    }
+
     return user;
   }
 
@@ -151,22 +200,22 @@ export class AuthServiceV1 {
   ) {
     this.validateAuthInitToken(initToken, 'login', deviceId);
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException();
-    await this.prisma.user.update({
+    const existingUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!existingUser) throw new UnauthorizedException();
+    const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), deviceId },
     });
     await this.authLogService.log({
       userId,
-      identifier: user.email ?? user.phone ?? undefined,
+      identifier: existingUser.email ?? existingUser.phone ?? undefined,
       outcome: 'login_success',
       deviceId,
       ip,
       userAgent,
     });
     const tokens = await this.issueTokens(userId, deviceId);
-    return { user, ...tokens };
+    return { user: this.toPublicUser(user), ...tokens };
   }
 
   async socialLogin(dto: SocialLoginDto, ip?: string, userAgent?: string) {
@@ -186,6 +235,7 @@ export class AuthServiceV1 {
         data: {
           email,
           displayName,
+          deviceId: deviceId ?? 'social',
           isVerified: true,
           [providerKey]: socialId,
         },
@@ -193,7 +243,12 @@ export class AuthServiceV1 {
     } else if (!user[providerKey]) {
       user = await this.prisma.user.update({
         where: { id: user.id },
-        data: { [providerKey]: socialId },
+        data: { [providerKey]: socialId, deviceId: deviceId ?? 'social' },
+      });
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { deviceId: deviceId ?? 'social' },
       });
     }
 
@@ -207,7 +262,7 @@ export class AuthServiceV1 {
     });
 
     const tokens = await this.issueTokens(user.id, deviceId ?? 'social');
-    return { user, ...tokens };
+    return { user: this.toPublicUser(user), ...tokens };
   }
 
   async refreshTokens(userId: string, dto: RefreshTokenDto) {
@@ -285,16 +340,142 @@ export class AuthServiceV1 {
       throw new UnauthorizedException();
     }
 
-    return user;
+    return this.toPublicUser(user);
   }
 
-  async verifyOtp(userId: string, _dto: VerifyOtpDto) {
-    // TODO: Placeholder for real OTP verification (Redis-backed)
+  async resendOtpByEmail(email: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found for provided email');
+    }
+
+    if (user.isVerified) {
+      return { success: true, message: 'Account is already verified' };
+    }
+
+    const ttlSeconds = await this.sendVerificationOtp(user);
+    return {
+      success: true,
+      message: 'OTP sent',
+      otpExpiresInSeconds: ttlSeconds,
+    };
+  }
+
+  async verifyOtpByEmail(dto: VerifyOtpByEmailDto) {
+    const user = await this.prisma.user.findFirst({
+      where: { email: dto.email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found for provided email');
+    }
+
+    const isValid = await this.otpService.verifyOtp(
+      user.id,
+      dto.otp,
+      OtpPurpose.VERIFY_EMAIL,
+    );
+    if (!isValid) {
+      throw new UnprocessableEntityException('Invalid or expired OTP');
+    }
+
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { isVerified: true },
     });
+
+    if (user.email) {
+      this.mailService.queueRegistrationConfirmedEmail({
+        to: user.email,
+        displayName: user.displayName,
+      });
+    }
+
     return { success: true };
+  }
+
+  async requestPasswordReset(email: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found for provided email');
+    }
+
+    if (!user.email) {
+      throw new BadRequestException('Cannot send OTP: user email is missing');
+    }
+
+    const { otp, ttlSeconds } = await this.otpService.generateAndStoreOtp(
+      user.id,
+      OtpPurpose.PASSWORD_RESET,
+    );
+
+    await this.mailService.sendVerificationOtpEmail({
+      to: user.email,
+      otp,
+      displayName: user.displayName,
+      expiresInMinutes: Math.ceil(ttlSeconds / 60),
+    });
+
+    return {
+      success: true,
+      message: 'Password reset OTP sent',
+      otpExpiresInSeconds: ttlSeconds,
+    };
+  }
+
+  async confirmPasswordReset(params: {
+    email: string;
+    otp: string;
+    newPassword: string;
+  }) {
+    const user = await this.prisma.user.findFirst({
+      where: { email: params.email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found for provided email');
+    }
+
+    const isValid = await this.otpService.verifyOtp(
+      user.id,
+      params.otp,
+      OtpPurpose.PASSWORD_RESET,
+    );
+    if (!isValid) {
+      throw new UnprocessableEntityException('Invalid or expired OTP');
+    }
+
+    const passwordHash = await this.hash(params.newPassword);
+
+    try {
+      await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: user.id },
+          data: { passwordHash },
+        }),
+        this.prisma.device.deleteMany({
+          where: { userId: user.id },
+        }),
+      ]);
+    } catch {
+      throw new InternalServerErrorException(
+        'Failed to reset password. Please try again.',
+      );
+    }
+
+    await this.authLogService.log({
+      userId: user.id,
+      identifier: user.email ?? undefined,
+      outcome: 'password_reset_success',
+    });
+
+    return { success: true, message: 'Password has been reset successfully' };
   }
 
   async ensureRole(userId: string, roles: Role[]) {
@@ -334,5 +515,48 @@ export class AuthServiceV1 {
   private hash(value: string) {
     const rounds = this.config.getBcryptSaltRounds();
     return bcrypt.hash(value, rounds);
+  }
+
+  private throwIfSchemaDrift(error: unknown) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2021' || error.code === 'P2022')
+    ) {
+      throw new InternalServerErrorException(
+        'Database schema is out of sync with the application. Run Prisma migrations and regenerate the client.',
+      );
+    }
+  }
+
+  private toPublicUser<T extends Record<string, unknown>>(user: T): PublicUser {
+    const { passwordHash, refreshTokenHash, ...safe } = user as T & {
+      passwordHash?: unknown;
+      refreshTokenHash?: unknown;
+    };
+    return safe;
+  }
+
+  private async sendVerificationOtp(user: {
+    id: string;
+    email: string | null;
+    displayName: string | null;
+  }) {
+    if (!user.email) {
+      throw new BadRequestException('Cannot send OTP: user email is missing');
+    }
+
+    const { otp, ttlSeconds } = await this.otpService.generateAndStoreOtp(
+      user.id,
+      OtpPurpose.VERIFY_EMAIL,
+    );
+
+    await this.mailService.sendVerificationOtpEmail({
+      to: user.email,
+      otp,
+      displayName: user.displayName,
+      expiresInMinutes: Math.ceil(ttlSeconds / 60),
+    });
+
+    return ttlSeconds;
   }
 }

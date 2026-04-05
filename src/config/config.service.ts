@@ -70,25 +70,12 @@ export class AppConfigService {
     return this.config.get<string>('DATABASE_URL');
   }
 
-  getEmailHost(): string | undefined {
-    return this.config.get<string>('EMAIL_HOST');
-  }
-
-  getEmailPort(): number | undefined {
-    const v = this.config.get<number>('EMAIL_PORT');
-    return v ? Number(v) : undefined;
-  }
-
-  getEmailUser(): string | undefined {
-    return this.config.get<string>('EMAIL_USER');
-  }
-
-  getEmailPass(): string | undefined {
-    return this.config.get<string>('EMAIL_PASS');
-  }
-
   getEmailFrom(): string | undefined {
     return this.config.get<string>('EMAIL_FROM');
+  }
+
+  getResendApiKey(): string | undefined {
+    return this.config.get<string>('RESEND_API_KEY');
   }
 
   getCookieSeed(): string | undefined {
@@ -165,6 +152,42 @@ export class AppConfigService {
 
   getRedisUrl(): string {
     return this.config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+  }
+
+  getOtpTtlSeconds(): number {
+    return Number(this.config.get<number>('OTP_TTL_SECONDS') ?? 600);
+  }
+
+  getOtpLength(): number {
+    return Number(this.config.get<number>('OTP_LENGTH') ?? 6);
+  }
+
+  getOtpResendCooldownSeconds(): number {
+    return Number(
+      this.config.get<number>('OTP_RESEND_COOLDOWN_SECONDS') ?? 60,
+    );
+  }
+
+  getOtpMaxVerifyAttempts(): number {
+    return Number(this.config.get<number>('OTP_MAX_VERIFY_ATTEMPTS') ?? 5);
+  }
+
+  getOtpMaxRequestsPerWindow(): number {
+    return Number(this.config.get<number>('OTP_MAX_REQUESTS_PER_WINDOW') ?? 5);
+  }
+
+  getOtpRequestWindowSeconds(): number {
+    return Number(
+      this.config.get<number>('OTP_REQUEST_WINDOW_SECONDS') ?? 3600,
+    );
+  }
+
+  getMailMaxRetries(): number {
+    return Number(this.config.get<number>('MAIL_MAX_RETRIES') ?? 3);
+  }
+
+  getMailRetryDelayMs(): number {
+    return Number(this.config.get<number>('MAIL_RETRY_DELAY_MS') ?? 300);
   }
 
   getAiWebhookToken(): string | undefined {

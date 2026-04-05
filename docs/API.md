@@ -29,7 +29,35 @@ Access tokens expire after 15 minutes. Use refresh tokens to get new access toke
 
 ### Register
 
-Create a new user account.
+Create a short-lived init token for registration.
+
+```http
+POST /v1/auth/register/init
+```
+
+**Request Body:**
+
+```json
+{
+  "deviceId": "device-unique-id"
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "token": "jwt-init-token",
+  "flow": "register",
+  "expiresInSeconds": 300
+}
+```
+
+---
+
+### Register Account
+
+Create a user account and send OTP to the user's email.
 
 ```http
 POST /v1/auth/register
@@ -40,9 +68,10 @@ POST /v1/auth/register
 ```json
 {
   "email": "user@example.com",
-  "phone": "+1234567890",
   "password": "SecurePass123!",
-  "displayName": "John Doe"
+  "displayName": "John Doe",
+  "deviceId": "device-unique-id",
+  "initToken": "jwt-init-token"
 }
 ```
 
@@ -50,15 +79,16 @@ POST /v1/auth/register
 
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "uuid",
     "email": "user@example.com",
     "displayName": "John Doe",
     "role": "USER",
     "isVerified": false
-  }
+  },
+  "requiresOtpVerification": true,
+  "otpExpiresInSeconds": 600,
+  "message": "Registration successful. We sent a verification OTP to your email."
 }
 ```
 
@@ -66,7 +96,35 @@ POST /v1/auth/register
 
 ### Login
 
-Authenticate with email/phone and password.
+Create a short-lived init token for login.
+
+```http
+POST /v1/auth/login/init
+```
+
+**Request Body:**
+
+```json
+{
+  "deviceId": "device-unique-id"
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "token": "jwt-init-token",
+  "flow": "login",
+  "expiresInSeconds": 300
+}
+```
+
+---
+
+### Login Account
+
+Authenticate with email/phone and password (verified accounts only).
 
 ```http
 POST /v1/auth/login
@@ -76,18 +134,18 @@ POST /v1/auth/login
 
 ```json
 {
-  "identifier": "user@example.com", // email or phone
+  "email": "user@example.com",
   "password": "SecurePass123!",
-  "deviceId": "device-unique-id" // optional
+  "deviceId": "device-unique-id",
+  "initToken": "jwt-init-token"
 }
 ```
 
-**Response:** `200 OK`
+**Response:** `201 Created`
 
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "uuid",
     "email": "user@example.com",
@@ -101,7 +159,45 @@ POST /v1/auth/login
 **Errors:**
 
 - `401 Unauthorized` - Invalid credentials
+- `401 Unauthorized` - Account not verified
 - `400 Bad Request` - Validation error
+
+---
+
+### Resend OTP
+
+Resend account verification OTP.
+
+```http
+POST /v1/auth/resend-otp
+```
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+---
+
+### Verify OTP
+
+Verify registration OTP and activate the account.
+
+```http
+POST /v1/auth/verify-otp
+```
+
+**Request Body:**
+
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+```
 
 ---
 

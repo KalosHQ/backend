@@ -16,6 +16,8 @@ import { RoleGuard } from './guards/role.guard';
 import { VerifiedGuard } from './guards/verified.guard';
 import { AppConfigModule } from 'src/config/config.module';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { MailModule } from 'src/modules/mail/mail.module';
+import { OtpModule } from 'src/modules/otp/v1/otp.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
     DeviceModule,
     AuthLogModule,
     AppConfigModule,
+    MailModule,
+    OtpModule,
   ],
   controllers: [AuthControllerV1],
   providers: [

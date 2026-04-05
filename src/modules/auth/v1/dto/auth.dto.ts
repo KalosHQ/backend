@@ -8,7 +8,7 @@ import {
   IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { ModelGenerationStatus, Role } from '@prisma/client';
 
 export enum SocialProvider {
   GOOGLE = 'google',
@@ -68,11 +68,38 @@ export class AuthUserResponseDto {
   @ApiPropertyOptional({ example: 'John Doe' })
   displayName?: string | null;
 
+  @ApiPropertyOptional({
+    example: 'https://cdn.kalos.app/profile/user_123.jpg',
+    nullable: true,
+  })
+  profilePicture?: string | null;
+
   @ApiProperty({ enum: Role, example: Role.USER })
   role!: Role;
 
+  @ApiPropertyOptional({
+    example: 'device-uuid-123',
+    nullable: true,
+  })
+  deviceId?: string | null;
+
   @ApiProperty({ example: false })
   isVerified!: boolean;
+
+  @ApiProperty({ example: false })
+  wardrobeUploaded!: boolean;
+
+  @ApiPropertyOptional({
+    example: '2026-03-08T22:00:00.000Z',
+    nullable: true,
+  })
+  onboardingCompletedAt?: string | null;
+
+  @ApiProperty({
+    enum: ModelGenerationStatus,
+    example: ModelGenerationStatus.NOT_STARTED,
+  })
+  modelGenerationStatus!: ModelGenerationStatus;
 
   @ApiPropertyOptional({ example: '2026-03-08T22:00:00.000Z' })
   lastLoginAt?: string | null;
@@ -82,6 +109,12 @@ export class AuthUserResponseDto {
 
   @ApiProperty({ example: '2026-03-08T22:00:00.000Z' })
   updatedAt!: string;
+
+  @ApiPropertyOptional({ example: 'google-oauth-id', nullable: true })
+  googleId?: string | null;
+
+  @ApiPropertyOptional({ example: 'facebook-oauth-id', nullable: true })
+  facebookId?: string | null;
 }
 
 export class AuthenticatedUserDetailsResponseDto extends AuthUserResponseDto {
@@ -98,6 +131,30 @@ export class AuthSessionResponseDto {
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
   accessToken!: string;
+}
+
+export class RegistrationPendingResponseDto {
+  @ApiProperty({ type: AuthUserResponseDto })
+  user!: AuthUserResponseDto;
+
+  @ApiProperty({
+    description: 'Indicates the user must verify OTP before login is allowed',
+    example: true,
+  })
+  requiresOtpVerification!: boolean;
+
+  @ApiProperty({
+    description: 'OTP validity period in seconds',
+    example: 600,
+  })
+  otpExpiresInSeconds!: number;
+
+  @ApiProperty({
+    description: 'Human readable registration state',
+    example:
+      'Registration successful. We sent a verification OTP to your email.',
+  })
+  message!: string;
 }
 
 export class RefreshAccessTokenResponseDto {
@@ -140,14 +197,26 @@ export class SuccessResponseDto {
   success!: boolean;
 }
 
+export class OtpDeliveryResponseDto extends SuccessResponseDto {
+  @ApiProperty({ example: 'OTP sent' })
+  message!: string;
+
+  @ApiProperty({ example: 600 })
+  otpExpiresInSeconds!: number;
+}
+
+export class PasswordResetResponseDto extends SuccessResponseDto {
+  @ApiProperty({ example: 'Password has been reset successfully' })
+  message!: string;
+}
+
 export class RegisterDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'User email address',
     example: 'user@example.com',
   })
-  @IsOptional()
   @IsEmail()
-  email?: string;
+  email!: string;
 
   @ApiPropertyOptional({
     description: 'User phone number with country code',
@@ -318,6 +387,55 @@ export class VerifyOtpDto {
   @IsNotEmpty()
   @IsString()
   otp!: string;
+}
+
+export class VerifyOtpByEmailDto extends VerifyOtpDto {
+  @ApiProperty({
+    description: 'Email address associated with the account',
+    example: 'user@example.com',
+  })
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+}
+
+export class ResendOtpDto {
+  @ApiProperty({
+    description: 'Email address for OTP delivery',
+    example: 'user@example.com',
+  })
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+}
+
+export class RequestPasswordResetDto {
+  @ApiProperty({
+    description: 'Email address tied to the account',
+    example: 'user@example.com',
+  })
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+}
+
+export class ConfirmPasswordResetDto extends VerifyOtpDto {
+  @ApiProperty({
+    description: 'Email address tied to the account',
+    example: 'user@example.com',
+  })
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({
+    description: 'New password',
+    minLength: 8,
+    example: 'EvenMoreSecure123!',
+  })
+  @IsString()
+  @MinLength(8)
+  newPassword!: string;
 }
 
 export class SocialLoginDto {

@@ -208,12 +208,20 @@ Start coding and building amazing features! 🚀
 **Quick Test Endpoint:**
 
 ```bash
+REGISTER_INIT_TOKEN=$(curl -s -X POST http://localhost:4000/v1/auth/register/init \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deviceId": "local-dev-1"
+  }' | jq -r '.token')
+
 curl -X POST http://localhost:4000/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
     "password": "Test123!",
-    "displayName": "Test User"
+    "displayName": "Test User",
+    "deviceId": "local-dev-1",
+    "initToken": "'"$REGISTER_INIT_TOKEN"'"
   }'
 ```
 

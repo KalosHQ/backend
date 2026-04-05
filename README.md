@@ -22,6 +22,7 @@ A modern NestJS backend application for Kalos, featuring authentication, user ma
 - **Authentication & Authorization**
   - JWT-based authentication with access and refresh tokens
   - Local authentication (email/phone + password)
+  - Email OTP verification after registration
   - OAuth integration (Google, Facebook)
   - Role-based access control (USER, VENDOR, CREATOR, ADMIN)
   - Device tracking and management
@@ -198,12 +199,15 @@ REFRESH_TOKEN_EXPIRES_IN="30d" # Refresh token expiration
 # Bcrypt
 BCRYPT_SALT_ROUNDS=10
 
-# Email (for notifications)
-EMAIL_HOST="smtp.example.com"
-EMAIL_PORT=587
-EMAIL_USER=""
-EMAIL_PASS=""
-EMAIL_FROM="no-reply@example.com"
+# Email (for notifications via Resend)
+RESEND_API_KEY="re_xxxxxxxxxxxxxxxxx"
+EMAIL_FROM="Kalos <no-reply@yourdomain.com>"
+
+# OTP (email verification)
+REDIS_URL="redis://localhost:6379"
+OTP_TTL_SECONDS=600
+OTP_LENGTH=6
+OTP_RESEND_COOLDOWN_SECONDS=60
 
 # Storage
 STORAGE_PROVIDER="s3"          # Options: 'local', 's3'
@@ -306,7 +310,11 @@ Test files are colocated with source files (`*.spec.ts`).
 
 ### Authentication Endpoints
 
+- `POST /v1/auth/register/init` - Initialize registration flow
 - `POST /v1/auth/register` - Register new user
+- `POST /v1/auth/resend-otp` - Resend registration OTP by email
+- `POST /v1/auth/verify-otp` - Verify registration OTP by email
+- `POST /v1/auth/login/init` - Initialize login flow
 - `POST /v1/auth/login` - Login with email/phone
 - `POST /v1/auth/refresh` - Refresh access token
 - `POST /v1/auth/logout` - Logout user

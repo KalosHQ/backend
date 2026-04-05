@@ -7,6 +7,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Post,
   Req,
   Res,
@@ -25,13 +26,19 @@ import {
   RegisterDto,
   RefreshTokenDto,
   LogoutDto,
-  VerifyOtpDto,
+  VerifyOtpByEmailDto,
+  ResendOtpDto,
+  RequestPasswordResetDto,
+  ConfirmPasswordResetDto,
   SocialProvider,
   AuthInitResponseDto,
   AuthInitRequestDto,
   AuthSessionResponseDto,
+  RegistrationPendingResponseDto,
   RefreshAccessTokenResponseDto,
   SuccessResponseDto,
+  OtpDeliveryResponseDto,
+  PasswordResetResponseDto,
   AuthenticatedUserDetailsResponseDto,
   DeviceResponseDto,
 } from './dto/auth.dto';
@@ -84,12 +91,13 @@ export class AuthControllerV1 {
   }
 
   @Post('register')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Register new user account' })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({
-    status: 201,
-    description: 'User registered successfully',
-    type: AuthSessionResponseDto,
+    status: 200,
+    description: 'User registered and verification OTP sent via email',
+    type: RegistrationPendingResponseDto,
   })
   @ApiResponse({
     status: 401,
@@ -98,29 +106,31 @@ export class AuthControllerV1 {
   async register(
     @Body() body: RegisterDto,
     @Req() req: FastifyRequest,
-    @Res({ passthrough: true }) res: FastifyReply,
   ) {
-    const result = await this.authService.register(
+    return this.authService.register(
       body,
       req.ip,
       req.headers['user-agent'],
     );
-    this.setRefreshCookie(res, result.refreshToken);
-    return { user: result.user, accessToken: result.accessToken };
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Login with email/phone and password' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
-    status: 201,
+    status: 200,
     description: 'User logged in successfully',
     type: AuthSessionResponseDto,
   })
   @ApiResponse({
+    status: 422,
+    description: 'Invalid credentials',
+  })
+  @ApiResponse({
     status: 401,
-    description: 'Invalid credentials or invalid/missing login init token',
+    description: 'Invalid or missing login init token',
   })
   async login(
     @CurrentUser() user: any,
@@ -215,10 +225,11 @@ export class AuthControllerV1 {
 
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Exchange refresh token for a new access token' })
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
-    status: 201,
+    status: 200,
     description: 'Access token refreshed successfully',
     type: RefreshAccessTokenResponseDto,
   })
@@ -258,11 +269,12 @@ export class AuthControllerV1 {
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
+  @HttpCode(200)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Logout user from a specific device session' })
   @ApiBody({ type: LogoutDto })
   @ApiResponse({
-    status: 201,
+    status: 200,
     description: 'Logout completed successfully',
     type: SuccessResponseDto,
   })
@@ -308,21 +320,70 @@ export class AuthControllerV1 {
     return this.authService.listDevices(user.sub);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Post('resend-otp')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Resend verification OTP to the account email',
+  })
+  @ApiBody({ type: ResendOtpDto })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP resent successfully',
+    type: OtpDeliveryResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'User not found for provided email' })
+  async resendOtp(@Body() body: ResendOtpDto) {
+    return this.authService.resendOtpByEmail(body.email);
+  }
+
   @Post('verify-otp')
-  @ApiBearerAuth('JWT-auth')
+  @HttpCode(200)
   @ApiOperation({
     summary: 'Verify one-time password and mark user as verified',
   })
-  @ApiBody({ type: VerifyOtpDto })
+  @ApiBody({ type: VerifyOtpByEmailDto })
   @ApiResponse({
-    status: 201,
+    status: 200,
     description: 'OTP verified successfully',
     type: SuccessResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async verify(@CurrentUser() user: any, @Body() body: VerifyOtpDto) {
-    return this.authService.verifyOtp(user.sub, body);
+  @ApiResponse({ status: 404, description: 'User not found for provided email' })
+  @ApiResponse({ status: 422, description: 'Invalid or expired OTP' })
+  async verify(@Body() body: VerifyOtpByEmailDto) {
+    return this.authService.verifyOtpByEmail(body);
+  }
+
+  @Post('password-reset/request')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Request password reset OTP by email',
+  })
+  @ApiBody({ type: RequestPasswordResetDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset OTP sent successfully',
+    type: OtpDeliveryResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'User not found for provided email' })
+  async requestPasswordReset(@Body() body: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(body.email);
+  }
+
+  @Post('password-reset/confirm')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Confirm password reset using OTP and set new password',
+  })
+  @ApiBody({ type: ConfirmPasswordResetDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset completed successfully',
+    type: PasswordResetResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'User not found for provided email' })
+  @ApiResponse({ status: 422, description: 'Invalid or expired OTP' })
+  async confirmPasswordReset(@Body() body: ConfirmPasswordResetDto) {
+    return this.authService.confirmPasswordReset(body);
   }
 
   private setRefreshCookie(res: FastifyReply, token: string) {

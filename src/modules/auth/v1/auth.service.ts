@@ -129,23 +129,37 @@ export class AuthServiceV1 {
       throw error;
     }
 
-    await this.authLogService.log({
-      userId: user.id,
-      identifier: dto.email ?? dto.phone ?? undefined,
-      outcome: 'registration',
-      ip,
-      userAgent,
-      deviceId: dto.deviceId,
-    });
+    try {
+      await this.authLogService.log({
+        userId: user.id,
+        identifier: dto.email ?? dto.phone ?? undefined,
+        outcome: 'registration',
+        ip,
+        userAgent,
+        deviceId: dto.deviceId,
+      });
 
-    const ttlSeconds = await this.sendVerificationOtp(user);
-    return {
-      user: this.toPublicUser(user),
-      requiresOtpVerification: true,
-      otpExpiresInSeconds: ttlSeconds,
-      message:
-        'Registration successful. We sent a verification OTP to your email.',
-    };
+      const ttlSeconds = await this.sendVerificationOtp(user);
+      return {
+        user: this.toPublicUser(user),
+        requiresOtpVerification: true,
+        otpExpiresInSeconds: ttlSeconds,
+        message:
+          'Registration successful. We sent a verification OTP to your email.',
+      };
+    } catch (error) {
+      try {
+        await this.prisma.$transaction([
+          this.prisma.device.deleteMany({ where: { userId: user.id } }),
+          this.prisma.user.deleteMany({ where: { id: user.id } }),
+        ]);
+      } catch {
+        throw new InternalServerErrorException(
+          'Registration failed and cleanup could not be completed. Please contact support.',
+        );
+      }
+      throw error;
+    }
   }
 
   async validateUser(identifier: string, password: string) {

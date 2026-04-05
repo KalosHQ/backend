@@ -118,6 +118,13 @@ class InMemoryPrisma {
       Object.assign(user, data, { updatedAt: new Date() });
       return user;
     },
+    deleteMany: async ({ where }: any) => {
+      const before = this.users.length;
+      this.users = this.users.filter((entry) =>
+        where.id ? entry.id !== where.id : true,
+      );
+      return { count: before - this.users.length };
+    },
   };
 
   device = {
@@ -408,6 +415,33 @@ describe('Auth flows (e2e)', () => {
       payload: { email: 'not-an-email' },
     });
     expect(invalidEmail.statusCode).toBe(400);
+  });
+
+  it('rolls back user/device records when register fails after user creation', async () => {
+    const init = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register/init',
+      payload: { deviceId: 'device-rollback' },
+    });
+    expect(init.statusCode).toBe(201);
+
+    mail.failNext = true;
+
+    const register = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: {
+        email: 'rollback@example.com',
+        password: 'SecurePass123!',
+        displayName: 'Rollback User',
+        deviceId: 'device-rollback',
+        initToken: init.json().token,
+      },
+    });
+
+    expect(register.statusCode).toBe(500);
+    expect(prisma.users).toHaveLength(0);
+    expect(prisma.devices).toHaveLength(0);
   });
 
   it('returns 422 for wrong otp and expired otp', async () => {

@@ -193,4 +193,15 @@ export class AppConfigService {
   getAiWebhookToken(): string | undefined {
     return this.config.get<string>('AI_WEBHOOK_TOKEN');
   }
+
+  getAiServiceBaseUrl(): string {
+    return (
+      this.config.get<string>('AI_SERVICE_BASE_URL') ??
+      'http://localhost:8000'
+    );
+  }
+
+  getAiServiceApiKey(): string | undefined {
+    return this.config.get<string>('AI_SERVICE_API_KEY');
+  }
 }

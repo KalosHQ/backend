@@ -8,36 +8,35 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/v1/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/v1/decorators/current-user.decorator';
-import { UsersService } from '../../users/v1/users.service';
 import {
-  OnboardingSubmissionResponseDto,
-  SetModelCustomizationDto,
-} from '../../users/v1/dto/onboarding.dto';
+  GenerateAvatarDto,
+  GenerateAvatarResponseDto,
+} from './dto/avatar.dto';
+import { AvatarService } from './avatar.service';
 
 @ApiTags('Avatar')
 @Controller({ path: 'user', version: '1' })
 export class AvatarController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly avatarService: AvatarService) {}
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @Post('avatar')
   @ApiOperation({
-    summary:
-      'Avatar generation entrypoint (alias of onboarding model customization)',
+    summary: 'Create an avatar generation job for the authenticated user',
   })
-  @ApiBody({ type: SetModelCustomizationDto })
+  @ApiBody({ type: GenerateAvatarDto })
   @ApiResponse({
     status: 201,
     description: 'Avatar generation requested successfully',
-    type: OnboardingSubmissionResponseDto,
+    type: GenerateAvatarResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid onboarding payload' })
+  @ApiResponse({ status: 400, description: 'Invalid avatar payload' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  createAvatar(
+  generateAvatar(
     @CurrentUser() user: { sub: string },
-    @Body() body: SetModelCustomizationDto,
+    @Body() body: GenerateAvatarDto,
   ) {
-    return this.usersService.setModelCustomization(user.sub, body);
+    return this.avatarService.generateAvatar(user.sub, body);
   }
 }

@@ -8,7 +8,7 @@ import {
 } from './avatar.dto';
 
 describe('GenerateAvatarDto', () => {
-  it('accepts average, neutral, and default glb', async () => {
+  it('accepts average, neutral, and default obj', async () => {
     const dto = plainToInstance(GenerateAvatarDto, {
       heightCm: 170,
       weightKg: 65,
@@ -19,7 +19,7 @@ describe('GenerateAvatarDto', () => {
     const errors = await validate(dto);
 
     expect(errors).toHaveLength(0);
-    expect(dto.exportFormat).toBe(AvatarExportFormat.GLB);
+    expect(dto.exportFormat).toBe(AvatarExportFormat.OBJ);
   });
 
   it('rejects invalid ranges and enum values', async () => {

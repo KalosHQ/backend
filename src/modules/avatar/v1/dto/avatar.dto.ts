@@ -18,8 +18,8 @@ export enum AvatarGender {
 }
 
 export enum AvatarExportFormat {
-  GLB = 'glb',
   OBJ = 'obj',
+  GLTF = 'gltf',
 }
 
 export class GenerateAvatarDto {
@@ -63,12 +63,12 @@ export class GenerateAvatarDto {
 
   @ApiPropertyOptional({
     enum: AvatarExportFormat,
-    example: AvatarExportFormat.GLB,
-    default: AvatarExportFormat.GLB,
+    example: AvatarExportFormat.OBJ,
+    default: AvatarExportFormat.OBJ,
   })
   @IsOptional()
   @IsEnum(AvatarExportFormat)
-  exportFormat: AvatarExportFormat = AvatarExportFormat.GLB;
+  exportFormat: AvatarExportFormat = AvatarExportFormat.OBJ;
 }
 
 export class GenerateAvatarResponseDto {

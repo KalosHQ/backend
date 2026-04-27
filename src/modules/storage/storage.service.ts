@@ -18,13 +18,23 @@ const PRIVATE_FOLDERS = new Set([
   'ai/temp',
 ]);
 const PUBLIC_FOLDERS = new Set(['tryon', 'feed', 'products']);
-const ALLOWED_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.glb']);
+const ALLOWED_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.glb',
+  '.gltf',
+  '.obj',
+]);
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.obj': 'model/obj',
 };
 
 @Injectable()

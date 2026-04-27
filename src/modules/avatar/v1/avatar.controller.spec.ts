@@ -38,7 +38,7 @@ describe('AvatarController', () => {
       weightKg: 65,
       bodyType: AvatarBodyType.AVERAGE,
       gender: AvatarGender.NEUTRAL,
-      exportFormat: AvatarExportFormat.GLB,
+      exportFormat: AvatarExportFormat.OBJ,
     };
 
     avatarService.generateAvatar.mockResolvedValue({

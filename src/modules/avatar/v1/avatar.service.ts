@@ -27,7 +27,7 @@ export class AvatarService {
             weightKg: dto.weightKg,
             bodyType: dto.bodyType,
             gender: dto.gender,
-            exportFormat: dto.exportFormat ?? AvatarExportFormat.GLB,
+            exportFormat: dto.exportFormat ?? AvatarExportFormat.OBJ,
           },
         },
       },
@@ -43,7 +43,7 @@ export class AvatarService {
         weight_kg: dto.weightKg,
         body_type: dto.bodyType,
         gender: dto.gender,
-        export_format: dto.exportFormat ?? AvatarExportFormat.GLB,
+        export_format: dto.exportFormat ?? AvatarExportFormat.OBJ,
       },
       metadata: {
         source: 'avatar_endpoint',

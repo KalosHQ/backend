@@ -56,7 +56,7 @@ describe('AvatarService', () => {
       weightKg: 65,
       bodyType: AvatarBodyType.AVERAGE,
       gender: AvatarGender.NEUTRAL,
-      exportFormat: AvatarExportFormat.GLB,
+      exportFormat: AvatarExportFormat.OBJ,
     };
 
     prisma.avatar.create.mockResolvedValue({ id: 'avatar-123' });
@@ -86,7 +86,7 @@ describe('AvatarService', () => {
             weightKg: 65,
             bodyType: 'average',
             gender: 'neutral',
-            exportFormat: 'glb',
+            exportFormat: 'obj',
           },
         },
       },
@@ -102,7 +102,7 @@ describe('AvatarService', () => {
         weight_kg: 65,
         body_type: 'average',
         gender: 'neutral',
-        export_format: 'glb',
+        export_format: 'obj',
       },
       metadata: {
         source: 'avatar_endpoint',
